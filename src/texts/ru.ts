@@ -15,7 +15,7 @@ export const t = {
   adminOnly: 'Команда доступна только администратору.',
 
   welcomeClient: (name: string) =>
-    `Привет, ${escapeHtml(name)}! Ты зарегистрирован.\nЗаявки на оплату сервисов появятся на следующем этапе — пока бот в настройке.`,
+    `Привет, ${escapeHtml(name)}! Ты зарегистрирован.\nСоздай заявку на оплату сервиса или посмотри свои заявки — кнопки в меню.`,
   welcomeAdmin:
     'Режим администратора.\n\n' +
     '/invite [заметка] — создать инвайт\n' +
@@ -24,8 +24,12 @@ export const t = {
     '/block &lt;id&gt; · /unblock &lt;id&gt;\n' +
     '/paylater &lt;id&gt; on [лимит ₽] | off\n' +
     '/settings [ключ значение]\n' +
-    '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;',
-  helpClient: 'Доступные команды появятся по мере запуска бота. /start — главное меню.',
+    '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n\n' +
+    '/orders — открытые заявки\n' +
+    '/rate [ВАЛ [курс|clear]] — курсы\n' +
+    '/cards · /card_add &lt;метка&gt; &lt;ВАЛ&gt; · /card_toggle &lt;id&gt;\n' +
+    '/methods · /method_add · /method_edit · /method_receipt · /method_toggle',
+  helpClient: 'Используй кнопки меню: «➕ Новая заявка» и «📋 Мои заявки». /cancel — отменить текущий диалог.',
 
   newClientNotice: (u: User) =>
     `Новый клиент: #${u.id} ${escapeHtml(u.displayName)}${u.username ? ` (@${escapeHtml(u.username)})` : ''}`,

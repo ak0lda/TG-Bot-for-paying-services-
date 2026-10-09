@@ -7,6 +7,12 @@ import type { InviteService } from '../services/invite-service.js';
 import type { SettingsService } from '../services/settings-service.js';
 import type { TrustedDomainService } from '../services/domain-service.js';
 import type { UserService } from '../services/user-service.js';
+import type { OrderService } from '../services/order-service.js';
+import type { RatesService } from '../services/rates.js';
+import type { CatalogService } from '../services/catalog-service.js';
+import type { Notifier } from '../services/notifier.js';
+import type { Presenter } from './presenter.js';
+import type { WizardManager } from './wizard/engine.js';
 
 export interface Deps {
   config: Config;
@@ -16,6 +22,12 @@ export interface Deps {
   invites: InviteService;
   settings: SettingsService;
   domains: TrustedDomainService;
+  orders: OrderService;
+  rates: RatesService;
+  catalog: CatalogService;
+  notifier: Notifier;
+  presenter: Presenter;
+  wizards: WizardManager;
 }
 
 export type Access = 'ok' | 'blocked' | 'unknown';

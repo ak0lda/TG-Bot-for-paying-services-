@@ -1,6 +1,7 @@
 import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { t } from '../../texts/ru.js';
+import { clientMenu } from '../keyboards/menu.js';
 
 const html = { parse_mode: 'HTML' as const };
 
@@ -12,7 +13,8 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
 
     if (ctx.access === 'ok' && ctx.appUser) {
       const user = ctx.appUser;
-      await ctx.reply(user.role === 'ADMIN' ? t.welcomeAdmin : t.welcomeClient(user.displayName), html);
+      if (user.role === 'ADMIN') await ctx.reply(t.welcomeAdmin, html);
+      else await ctx.reply(t.welcomeClient(user.displayName), { ...html, reply_markup: clientMenu });
       return;
     }
 
@@ -32,7 +34,7 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
       return;
     }
     deps.log.info({ userId: res.user.id }, 'client registered via invite');
-    await ctx.reply(t.welcomeClient(res.user.displayName), html);
+    await ctx.reply(t.welcomeClient(res.user.displayName), { ...html, reply_markup: clientMenu });
     const adminChat = deps.config.ADMIN_CHAT_ID ?? deps.config.ADMIN_TELEGRAM_ID;
     await ctx.api
       .sendMessage(Number(adminChat), t.newClientNotice(res.user), html)

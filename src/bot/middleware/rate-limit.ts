@@ -4,8 +4,8 @@ import { RateLimiter } from '../../services/rate-limiter.js';
 import { t } from '../../texts/ru.js';
 
 /** 10 запросов подряд, затем 1 в секунду. Лишнее молча отбрасывается (с одним ответом на всплеск). */
-export function rateLimit(): MiddlewareFn<BotContext> {
-  const limiter = new RateLimiter(10, 1);
+export function rateLimit(capacity = 10, refillPerSec = 1): MiddlewareFn<BotContext> {
+  const limiter = new RateLimiter(capacity, refillPerSec);
   const warned = new Map<string, number>();
   return async (ctx, next) => {
     const id = ctx.from?.id;

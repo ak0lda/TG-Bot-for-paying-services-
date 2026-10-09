@@ -251,6 +251,7 @@ model Attachment {
   topUp        TopUp?         @relation(fields: [topUpId], references: [id], onDelete: Restrict)
   kind         AttachmentKind
   tgFileId     String
+  tgFileType   String         @default("photo")
   uploadedById Int
   createdAt    DateTime       @default(now())
 }

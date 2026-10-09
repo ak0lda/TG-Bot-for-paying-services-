@@ -1,6 +1,6 @@
-# Context snapshot — конец этапа 1
+# Context snapshot — конец этапа 2
 
-Дата: 2026-10-09 · Ветка: `claude/tender-galileo-vgpmyi` · Следующий шаг: **этап 2** (ждёт подтверждения владельца).
+Дата: 2026-10-09 · Ветка: `claude/tender-galileo-vgpmyi` · Следующий шаг: **этап 3** (ждёт подтверждения владельца).
 
 ## Продукт (кратко)
 Закрытый TG-бот: друзья создают заявки на оплату зарубежных сервисов, админ платит своей картой вручную, друзья возвращают рубли.
@@ -8,44 +8,51 @@
 Режимы оплаты клиента: PREPAY (по умолчанию), BALANCE (резерв с баланса), PAY_LATER (лимит долга).
 Логины/пароли и реквизиты карт не запрашиваем и не храним; у карт админа — только метка и валюта.
 
-## Принятые решения (подтверждены владельцем: «по всем пунктам да»)
+## Принятые решения (подтверждены владельцем)
 1. Карточки заявок — в личку админа (`ADMIN_CHAT_ID` опционален). Только русский.
 2. BALANCE: резерв суммы расчёта → при DONE резерв превращается в списание, затем отдельной проводкой разница по факту.
 3. Факт списания переводится в рубли по курсу ЦБ на момент DONE (админ может поправить вручную); валюта карты ≠ валюта заявки допустима.
 4. Разница (переплата/доплата) автоматически идёт в ledger клиента + уведомление клиенту.
-5. Отклонение/отмена после подтверждённой оплаты: деньги остаются на балансе клиента (не возврат переводом).
-6. Инвайт: одноразовый, 72 ч. PAY_LATER лимит — в рублях. Напоминания 10:00 МСК. Бэкапы 14 дней локально. pnpm. Без лицензии.
-7. Хостинг не выбран → по умолчанию **long polling** (домен/HTTPS не нужны), webhook + Caddy — опциональный профиль compose.
+5. Отклонение после подтверждённой оплаты: деньги остаются на балансе клиента.
+6. Инвайт: одноразовый, 72 ч. PAY_LATER лимит — в рублях. Напоминания 10:00 МСК. Бэкапы 14 дней. pnpm. Без лицензии.
+7. Хостинг не выбран → **long polling** по умолчанию; webhook + Caddy — опциональный профиль compose.
 
-## Сделано в этапе 1
-- Каркас: pnpm, TS strict (NodeNext, импорты с `.js`), Vitest, Dockerfile, docker-compose (db, app, backup, caddy-профиль), `.env.example`, README.
-- `prisma/schema.prisma` — **полная схема всех этапов** (User, Invite, Setting, TrustedDomain, PaymentMethod, AdminCard, Order, OrderEvent, TopUp, Attachment, LedgerEntry, Reminder).
-  Миграция `20260101000000_init` + триггеры append-only для `LedgerEntry` и `OrderEvent`. Применена и проверена на реальном PostgreSQL 16.
-- Конфиг (Zod, `loadConfig`), логгер pino с redact, `domain/money` (BigInt, парсинг/формат/округление вверх до рубля),
-  `services/crypto` (AES-256-GCM, формат iv|tag|ct), `services/rate-limiter` (token bucket 10 + 1/с),
-  `domain/settings` (реестр настроек; проценты в б.п., рубли в копейках), `domain/domains`, `domain/invite-code`.
-- Сервисы: Users, Invites (атомарное погашение в транзакции), Settings, TrustedDomains; `db/bootstrap` (разово: 5 доверенных доменов + 3 метода оплаты).
-- Бот: middleware `rateLimit` → `auth` (роль на каждый апдейт, только приват; неизвестным — только /start; заблокированным — отказ) → `common` (/start [код], /help) → `admin` (с `requireAdmin`):
-  /invite, /invites, /clients, /block, /unblock, /paylater, /settings, /domains, /domain_add, /domain_del.
-- Fastify: `/health`, `/webhook` (secretToken) только в webhook-режиме. Graceful shutdown.
-- Тесты: 51 (46 юнит + 5 интеграционных с БД, включая гонку 3 одновременных погашений одного инвайта и запрет UPDATE/DELETE в ledger). `tsc --noEmit` и `pnpm build` чистые.
+## Решения, принятые мной на этапе 2 (проверь, если не согласен)
+- **Формула разницы по факту:** `baseCost − actualRub`, где `baseCost = сумма × курс × (1 + запас)` (без наценки и фикса), `actualRub = факт в валюте карты × курс валюты карты`.
+  Наценка и фикс — доход админа и в разницу не входят.
+- **Все суммы в иностранной валюте хранятся в сотых долях** (exponent 2), включая JPY/KRW — для единообразия арифметики.
+- **Ledger при PREPAY:** `PAYMENT_RECEIVED +total` при «Оплата получена» → `ORDER_CHARGE −total` и (если ≠0) `DIFF_ADJUST` при DONE. Баланс после DONE = разница.
+- **Расчёт истекает и в AWAITING_PAYMENT** (не только в QUOTED). Если клиент перевёл деньги уже после истечения — придётся пересчитать; админ решает вручную. В PAYMENT_CHECK заявка не истекает.
+- **Отмена клиентом из PAYMENT_CHECK разрешена** (оплата ещё не подтверждена), админу уходит предупреждение «проверь, не нужно ли вернуть перевод».
+- **Диалоги — свой лёгкий движок** (`src/bot/wizard/engine.ts`), а не @grammyjs/conversations (убран из зависимостей): без replay-ловушек, состояние в памяти (черновик теряется при рестарте, TTL 30 мин).
+- **`/methods` (CRUD способов перевода) частично вытащен из этапа 3** — иначе PREPAY-цикл нельзя пройти. Номера карт в инструкциях запрещены (Luhn-детектор), чтобы выполнить правило «никаких данных карт в БД»; указывать нужно телефон СБП/банк/получателя. Если нужно разрешить — убрать проверку в `admin-catalog.ts`.
+- Режим оплаты (PREPAY/BALANCE/PAY_LATER) в диалоге создания заявки пока **не спрашивается** — всегда PREPAY. FSM уже поддерживает BALANCE/PAY_LATER (переходы с guard по `payMode`), UI — этап 3.
+- Админ-защита (`requireAdmin`) навешана на конкретные команды, а не на весь композер (иначе перехватывала бы апдейты клиентов — поймано при e2e).
+
+## Сделано в этапе 2
+- **domain:** `link-validator` (https, сокращатели, credentials, IP, доверенные домены с поддоменами), `pricing` (BigInt, единое округление вверх, `settlementDiff`), `order-fsm` (таблица переходов + роли + guard), `secret-detector` (карты по Luhn, CVV, логин/пароль, OTP), `ledger` (`sumEntries`, `doneEntries`), `period` (`addPeriod` для подписок).
+- **services:** `rates` (ЦБ РФ XML, windows-1251, кеш 1 ч, устаревший кеш при сбое, ручной курс приоритетнее), `order-service` (все переходы в одной транзакции с `OrderEvent`, оптимистичная блокировка по `Order.version`, проводки ledger, шифрование кода, `nextChargeAt` для подписок), `catalog-service` (карты, методы), `ledger-service.balanceOf`, `notifier`, `scheduler` (каждые 5 мин переводит просроченные расчёты в EXPIRED и уведомляет клиента).
+- **bot:** движок диалогов; диалог создания заявки по 4 типам; подтверждение расчёта + выбор метода; «Я оплатил» + чек (file_id); новая ссылка; отклонение с причиной; «Выполнено» (код → карта → факт → курс → скриншот → итог/разница → подтверждение);
+  карточки клиента и админа (✅/⚠️ домен, возраст, «ссылка может быть недействительна», URL-кнопка только в IN_PROGRESS); идемпотентные кнопки `o:<id>:<version>:<action>`; «Мои заявки», `/orders`, `/cards`, `/card_add`, `/card_toggle`, `/methods`, `/method_*`, `/rate`, `/cancel`.
+- **БД:** миграция `20260102000000_attachment_file_type` (тип вложения photo/document).
+- **Тесты: 101** (юнит: pricing, FSM, link-validator, secret-detector, rates, ledger/period + интеграционные + 7 e2e сценариев через настоящий grammY с подставным Telegram API и реальным PostgreSQL: полный цикл PREPAY с проверкой ledger и устаревших кнопок, GIFT_CARD с шифрованием, небезопасный ввод, права, reject после оплаты, EXPIRED/пересчёт, цикл LINK_INVALID, гонка 3 одновременных подтверждений).
 
 ## Не проверено
-- Реальный запуск с Telegram (нет токена в окружении) и `docker compose up` (в окружении нет Docker-демона). Dockerfile не собирался.
-- Интеграционные тесты запускаются только с `TEST_DATABASE_URL` (иначе пропускаются).
+- Реальный Telegram (нет токена в окружении) — вёрстка/клавиатуры видны только по структурам вызовов API в e2e.
+- `docker compose up` и сборка Dockerfile (нет Docker-демона в окружении).
+- Загрузка курсов с настоящего cbr.ru (в тестах — подставной XML; реальный формат учтён: windows-1251, запятая в числах, Nominal).
 
-## Настройки по умолчанию (меняются через /settings)
-fxBufferBp=200 (2%), markupBp=500 (5%), fixedFeeMinor=0, quoteTtlHours=12, staleLinkHours=24, giftCodeRetentionDays=7,
-debtReminderDays=3, subscriptionRemindDays=3, inviteTtlHours=72, reminderHour=10, defaultPayLaterLimitMinor=0.
+## Структура (актуально)
+`src/bot/{index,context,callbacks,presenter,errors}.ts`, `src/bot/{handlers,middleware,keyboards,wizard}/`,
+`src/domain/*`, `src/services/*`, `src/texts/{ru,orders,catalog}.ts`, `src/db`, `src/http`, `src/app.ts` (сборка зависимостей), `src/index.ts`.
 
-## План этапа 2 (заявки, расчёт, статусы, админ-обработка)
-- `domain/link-validator` (https, сокращатели, доверенные домены, поддомены), `domain/pricing` (итог = сумма×курс×(1+запас)×(1+наценка)+фикс, ceil до рубля, Decimal/BigInt),
-  `domain/order-fsm` (таблица переходов + роли + guard), `services/rates` (ЦБ XML, кеш 1 ч, ручной курс), `domain/secret-detector`.
-- `services/order-service.transition()` — единственная точка смены статуса: optimistic lock по `Order.version`, запись `OrderEvent`, ledger — в одной транзакции.
-- Диалог создания заявки по типам (@grammyjs/conversations), «Мои заявки», «Отменить».
-- Админ-карточка с кнопками по статусу, идемпотентность кнопок (версия в callback_data), «Выполнено» (карта, факт списания, разница, GIFT_CARD-код), `/cards`.
-- Юнит-тесты: pricing, FSM, link-validator, secret-detector.
-- Открытый вопрос к владельцу на этап 2: нет (все ответы получены).
+## План этапа 3 (способы оплаты от клиента, балансы, оплата позже)
+- Шаг «способ оплаты» в диалоге заявки: PREPAY / BALANCE (если баланс > 0) / PAY_LATER (если включён админом и не превышен лимит).
+- BALANCE: при подтверждении QUOTED→IN_PROGRESS с резервом (`ORDER_RESERVE −total`, `reservedMinor`); при нехватке — предложить доплатить разницу переводом; при DONE резерв → `ORDER_CHARGE` (+`ORDER_RELEASE`), при отмене/отклонении — возврат резерва.
+- PAY_LATER: проверка лимита (долг + новая сумма ≤ лимит), после DONE — `DEBT_OPEN`; погашение переводом (`DEBT_REPAY`), напоминания раз в N дней (`debtReminderDays`).
+- «Пополнить баланс» (сумма → метод → чек → подтверждение админом → `TOPUP`), «Мой баланс» (баланс/долг + история), `/debts`, ручная корректировка `MANUAL_ADJUST`, `/clients` с балансами.
+- Тесты: ledger (резервы/долг), FSM для BALANCE/PAY_LATER, e2e сценарии.
 
 ## Как продолжить в новой сессии
-`pnpm install && pnpm prisma generate`; прочитать этот файл и `prisma/schema.prisma`; для интеграционных тестов поднять PostgreSQL и выставить `TEST_DATABASE_URL`.
+`pnpm install && pnpm prisma generate`; прочитать этот файл и `prisma/schema.prisma`;
+для интеграционных/e2e тестов поднять PostgreSQL, применить `pnpm prisma migrate deploy` и выставить `TEST_DATABASE_URL`.

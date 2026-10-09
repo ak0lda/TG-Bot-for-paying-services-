@@ -13,9 +13,13 @@ import { t } from '../../texts/ru.js';
 
 const html = { parse_mode: 'HTML' as const };
 
+const ADMIN_COMMANDS = [
+  'invite', 'invites', 'clients', 'block', 'unblock', 'paylater', 'settings', 'domains', 'domain_add', 'domain_del',
+];
+
 export function adminHandlers(deps: Deps): Composer<BotContext> {
+  const outer = new Composer<BotContext>();
   const c = new Composer<BotContext>();
-  c.use(requireAdmin);
 
   // ── Инвайты ────────────────────────────────────────────────
   c.command('invite', async (ctx) => {
@@ -114,5 +118,7 @@ export function adminHandlers(deps: Deps): Composer<BotContext> {
     await ctx.reply((await deps.domains.remove(domain)) ? t.domainRemoved(domain) : t.domainMissing, html);
   });
 
-  return c;
+  // Проверка роли только на админские команды: остальные апдейты проходят мимо к клиентским обработчикам.
+  outer.command(ADMIN_COMMANDS, requireAdmin, c);
+  return outer;
 }
