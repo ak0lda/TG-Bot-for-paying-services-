@@ -29,6 +29,14 @@
 - Режим оплаты (PREPAY/BALANCE/PAY_LATER) в диалоге создания заявки пока **не спрашивается** — всегда PREPAY. FSM уже поддерживает BALANCE/PAY_LATER (переходы с guard по `payMode`), UI — этап 3.
 - Админ-защита (`requireAdmin`) навешана на конкретные команды, а не на весь композер (иначе перехватывала бы апдейты клиентов — поймано при e2e).
 
+## Сделано в этапе 2
+- **domain:** `link-validator` (https, сокращатели, credentials, IP, доверенные домены с поддоменами), `pricing` (BigInt, единое округление вверх, `settlementDiff`), `order-fsm` (таблица переходов + роли + guard), `secret-detector` (карты по Luhn, CVV, логин/пароль, OTP), `ledger` (`sumEntries`, `doneEntries`), `period` (`addPeriod` для подписок).
+- **services:** `rates` (ЦБ РФ XML, windows-1251, кеш 1 ч, устаревший кеш при сбое, ручной курс приоритетнее), `order-service` (все переходы в одной транзакции с `OrderEvent`, оптимистичная блокировка по `Order.version`, проводки ledger, шифрование кода, `nextChargeAt` для подписок), `catalog-service` (карты, методы), `ledger-service.balanceOf`, `notifier`, `scheduler` (каждые 5 мин переводит просроченные расчёты в EXPIRED и уведомляет клиента).
+- **bot:** движок диалогов; диалог создания заявки по 4 типам; подтверждение расчёта + выбор метода; «Я оплатил» + чек (file_id); новая ссылка; отклонение с причиной; «Выполнено» (код → карта → факт → курс → скриншот → итог/разница → подтверждение);
+  карточки клиента и админа (✅/⚠️ домен, возраст, «ссылка может быть недействительна», URL-кнопка только в IN_PROGRESS); идемпотентные кнопки `o:<id>:<version>:<action>`; «Мои заявки», `/orders`, `/cards`, `/card_add`, `/card_toggle`, `/methods`, `/method_*`, `/rate`, `/cancel`.
+- **БД:** миграция `20260102000000_attachment_file_type` (тип вложения photo/document).
+- **Тесты: 101** (юнит: pricing, FSM, link-validator, secret-detector, rates, ledger/period + интеграционные + 7 e2e сценариев через настоящий grammY с подставным Telegram API и реальным PostgreSQL: полный цикл PREPAY с проверкой ledger и устаревших кнопок, GIFT_CARD с шифрованием, небезопасный ввод, права, reject после оплаты, EXPIRED/пересчёт, цикл LINK_INVALID, гонка 3 одновременных подтверждений).
+
 ## Решения, принятые мной на этапе 3 (проверь)
 - **Модель резерва:** `ORDER_RESERVE −сумма` сразу уменьшает баланс; при DONE — `ORDER_RELEASE +reserved`, `ORDER_CHARGE −total`, `DIFF_ADJUST`; при CANCELED/REJECTED/EXPIRED резерв возвращается автоматически (в одном месте — `OrderService.run`).
 - **BALANCE при нехватке:** резервируется *доступный* баланс сразу (чтобы его не потратили параллельно), клиент доплачивает `payDueMinor = total − reserve` переводом; при «Оплата получена» пишется `PAYMENT_RECEIVED +due` и `ORDER_RESERVE −due`, итого под заявкой зарезервирован весь `total`.
