@@ -12,6 +12,7 @@ import { OrderService } from './services/order-service.js';
 import { RatesService } from './services/rates.js';
 import { SettingsService } from './services/settings-service.js';
 import { TrustedDomainService } from './services/domain-service.js';
+import { ReportService } from './services/report-service.js';
 import { TopUpService } from './services/topup-service.js';
 import { UserService } from './services/user-service.js';
 
@@ -34,6 +35,7 @@ export function buildDeps(config: Config, db: Db, log: Logger, api: Api): Deps {
     catalog,
     notifier,
     topups: new TopUpService(db),
+    reports: new ReportService(db),
     orders: new OrderService(db, rates, settings, config.ENCRYPTION_KEY),
     presenter: new Presenter({ domains, settings, config, catalog, notifier }),
     wizards: new WizardManager(),

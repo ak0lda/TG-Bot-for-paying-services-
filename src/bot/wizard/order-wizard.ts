@@ -2,9 +2,8 @@ import type { OrderType, PayMode, PeriodKind } from '@prisma/client';
 import type { Deps } from '../context.js';
 import type { Step, WizardDef } from './engine.js';
 import { freeText, linkInput } from './helpers.js';
-import { MoneyParseError, parseDecimalToMinor, formatMinor, formatRub } from '../../domain/money.js';
-import { availableOf, payLaterExposure } from '../../domain/ledger.js';
-import { balanceOf } from '../../services/ledger-service.js';
+import { MoneyParseError, parseDecimalToMinor, formatMinor } from '../../domain/money.js';
+import { availableModes } from './pay-modes.js';
 import { RateUnavailableError } from '../../services/rates.js';
 import { TYPE_LABEL, o as ot, periodLabel, LINK_REMINDER } from '../../texts/orders.js';
 import { escapeHtml } from '../../texts/ru.js';
@@ -42,25 +41,6 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
       throw e;
     }
     return { ok: true, code };
-  }
-
-  /** Доступные клиенту режимы оплаты (PREPAY — всегда). */
-  async function availableModes(clientId: number): Promise<Array<{ mode: PayMode; label: string }>> {
-    const user = await deps.db.user.findUniqueOrThrow({ where: { id: clientId } });
-    const balance = await balanceOf(deps.db, clientId);
-    const modes: Array<{ mode: PayMode; label: string }> = [{ mode: 'PREPAY', label: ot.payModeLabel.PREPAY }];
-    if (availableOf(balance) > 0n) modes.push({ mode: 'BALANCE', label: ot.payModeLabel.BALANCE(formatRub(availableOf(balance))) });
-    if (user.payLaterEnabled && user.payLaterLimitMinor > 0n) {
-      const open = await deps.db.order.aggregate({
-        where: { clientId, payMode: 'PAY_LATER', status: { in: ['IN_PROGRESS', 'LINK_INVALID'] } },
-        _sum: { totalMinor: true },
-      });
-      const used = payLaterExposure(balance, open._sum.totalMinor ?? 0n, 0n);
-      if (used < user.payLaterLimitMinor) {
-        modes.push({ mode: 'PAY_LATER', label: ot.payModeLabel.PAY_LATER(formatRub(user.payLaterLimitMinor - used)) });
-      }
-    }
-    return modes;
   }
 
   const steps: Step<OrderDraft>[] = [
@@ -209,16 +189,16 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
       key: 'paymode',
       // Если доступен только перевод — шаг пропускается (режим PREPAY).
       skip: async (d) => {
-        if ((await availableModes(d.clientId)).length > 1) return false;
+        if ((await availableModes(deps, d.clientId)).length > 1) return false;
         d.payMode = 'PREPAY';
         return true;
       },
       prompt: async (d) => ({
         text: ot.stepPayMode,
-        buttons: (await availableModes(d.clientId)).map((m) => [{ label: m.label, value: m.mode }]),
+        buttons: (await availableModes(deps, d.clientId)).map((m) => [{ label: m.label, value: m.mode }]),
       }),
       handle: async (input, d) => {
-        const modes = await availableModes(d.clientId);
+        const modes = await availableModes(deps, d.clientId);
         const chosen = modes.find((m) => m.mode === input.button);
         if (!chosen) return input.button ? ot.payModeUnavailable : ot.useButtons;
         d.payMode = chosen.mode;

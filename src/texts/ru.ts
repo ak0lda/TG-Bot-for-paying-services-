@@ -26,6 +26,7 @@ export const t = {
     '/settings [ключ значение]\n' +
     '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n\n' +
     '/orders — открытые заявки\n' +
+    '/stats [период] · /export [период] · /subs\n' +
     '/debts — долги и переплаты · /client &lt;id&gt; — карточка клиента\n' +
     '/adjust &lt;id&gt; &lt;±сумма&gt; [комментарий] — корректировка баланса\n' +
     '/rate [ВАЛ [курс|clear]] — курсы\n' +

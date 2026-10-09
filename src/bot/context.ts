@@ -10,6 +10,7 @@ import type { UserService } from '../services/user-service.js';
 import type { OrderService } from '../services/order-service.js';
 import type { RatesService } from '../services/rates.js';
 import type { CatalogService } from '../services/catalog-service.js';
+import type { ReportService } from '../services/report-service.js';
 import type { TopUpService } from '../services/topup-service.js';
 import type { Notifier } from '../services/notifier.js';
 import type { Presenter } from './presenter.js';
@@ -25,6 +26,7 @@ export interface Deps {
   domains: TrustedDomainService;
   orders: OrderService;
   topups: TopUpService;
+  reports: ReportService;
   rates: RatesService;
   catalog: CatalogService;
   notifier: Notifier;

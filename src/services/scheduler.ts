@@ -3,6 +3,7 @@ import type { Deps } from '../bot/context.js';
 import { debtOf } from '../domain/ledger.js';
 import { balancesByClient } from './ledger-service.js';
 import { b } from '../texts/balance.js';
+import { r } from '../texts/reports.js';
 import { o as ot } from '../texts/orders.js';
 
 const SWEEP_MS = 5 * 60 * 1000;
@@ -38,7 +39,50 @@ export async function sendDebtReminders(deps: SchedulerDeps, now: Date = new Dat
   return sent;
 }
 
-/** Планировщик: истечение расчётов (этап 2) и напоминания о долге (этап 3). Подписки/очистка — этап 4. */
+/**
+ * Напоминания о подписках: за `subscriptionRemindDays` дней до списания (и до 3 дней после, если пропустили) —
+ * клиенту с кнопками «Продлить» / «Не продлевать» и админу. Один раз на (заявка, дата списания).
+ * Не напоминаем, если продление уже оформлено или клиент заблокирован.
+ */
+export async function sendSubscriptionReminders(deps: SchedulerDeps, now: Date = new Date()): Promise<number> {
+  const settings = await deps.settings.getAll();
+  if (localHour(now, deps.config.TIMEZONE) < settings.reminderHour) return 0;
+  const horizon = new Date(now.getTime() + settings.subscriptionRemindDays * 86_400_000);
+  const grace = new Date(now.getTime() - 3 * 86_400_000);
+
+  const subs = await deps.db.order.findMany({
+    where: { isSubscription: true, status: 'DONE', nextChargeAt: { not: null, lte: horizon, gte: grace } },
+    include: { client: true },
+    orderBy: { nextChargeAt: 'asc' },
+  });
+
+  let sent = 0;
+  for (const o of subs) {
+    if (o.client.status !== 'ACTIVE') continue;
+    const renewal = await deps.db.order.findFirst({ where: { renewedFromId: o.id, status: { notIn: ['CANCELED', 'REJECTED'] } } });
+    if (renewal) continue;
+    try {
+      await deps.db.reminder.create({ data: { key: `sub:${o.id}:${o.nextChargeAt!.toISOString().slice(0, 10)}` } });
+    } catch {
+      continue; // уже напоминали об этом списании
+    }
+    const kb = new InlineKeyboard().text(r.renewBtn, `s:${o.id}:rn`).text(r.stopBtn, `s:${o.id}:no`);
+    if (await deps.notifier.toClient(o.client.telegramId, r.subReminderClient(o, deps.config.TIMEZONE), kb)) sent++;
+    await deps.notifier.toAdmin(r.subReminderAdmin(o, deps.config.TIMEZONE));
+  }
+  return sent;
+}
+
+/** Автоудаление кодов подарочных карт: после `giftCodeDeleteAt` шифртекст стирается из БД. */
+export async function purgeGiftCodes(deps: Pick<SchedulerDeps, 'db'>, now: Date = new Date()): Promise<number> {
+  const res = await deps.db.order.updateMany({
+    where: { giftCodeEnc: { not: null }, giftCodeDeleteAt: { lte: now } },
+    data: { giftCodeEnc: null, giftCodeDeleteAt: null },
+  });
+  return res.count;
+}
+
+/** Планировщик: истечение расчётов, напоминания (долги, подписки), очистка кодов подарочных карт. */
 export function startScheduler(deps: SchedulerDeps): () => void {
   const sweep = async () => {
     try {
@@ -46,6 +90,9 @@ export function startScheduler(deps: SchedulerDeps): () => void {
         await deps.presenter.notifyClient(o, ot.expiredNotice(o.id));
       }
       await sendDebtReminders(deps);
+      await sendSubscriptionReminders(deps);
+      const purged = await purgeGiftCodes(deps);
+      if (purged > 0) deps.log.info({ purged }, 'gift codes purged');
     } catch (e) {
       deps.log.error({ err: (e as Error).message }, 'scheduler sweep failed');
     }

@@ -32,6 +32,12 @@ export class StaleOrderError extends Error {
 }
 export class OrderDataError extends Error {}
 export class PayLaterDeniedError extends Error {}
+/** Для подписки уже есть живая заявка-продление. */
+export class RenewalExistsError extends Error {
+  constructor(readonly order: Order) {
+    super('renewal already exists');
+  }
+}
 /** Превышен лимит «оплаты позже». */
 export class PayLaterLimitError extends Error {
   constructor(
@@ -438,6 +444,65 @@ export class OrderService {
       },
     });
     return { order, settlement };
+  }
+
+  // ── Подписки ──────────────────────────────────────────────
+  /**
+   * Продление: новая заявка с теми же данными. Ссылку клиент присылает заново (старая одноразовая),
+   * режим оплаты выбирается заново. Для одной подписки живая заявка-продление может быть только одна.
+   */
+  async renew(
+    sourceId: number,
+    clientId: number,
+    over: { url: string | null; urlDomain: string | null; payMode: PayMode },
+  ): Promise<OrderWithClient> {
+    return this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${sourceId} FOR UPDATE`;
+      const src = await tx.order.findUnique({ where: { id: sourceId } });
+      if (!src) throw new OrderNotFoundError();
+      if (src.clientId !== clientId) throw new ForbiddenError();
+      if (!src.isSubscription || src.status !== 'DONE' || src.amountMinor == null || !src.currency) {
+        throw new OrderDataError('order is not a finished subscription');
+      }
+      const existing = await tx.order.findFirst({
+        where: { renewedFromId: src.id, status: { notIn: ['CANCELED', 'REJECTED'] } },
+      });
+      if (existing) throw new RenewalExistsError(existing);
+
+      const order = await tx.order.create({
+        data: {
+          clientId, type: src.type, service: src.service, description: src.description,
+          url: over.url, urlDomain: over.urlDomain,
+          giftStore: src.giftStore, giftRegion: src.giftRegion,
+          amountMinor: src.amountMinor, currency: src.currency,
+          isSubscription: true, periodKind: src.periodKind, periodDays: src.periodDays,
+          comment: src.comment, payMode: over.payMode, renewedFromId: src.id,
+        },
+        include: { client: true },
+      });
+      await tx.orderEvent.create({
+        data: { orderId: order.id, actorId: clientId, fromStatus: null, toStatus: 'NEW', comment: `Продление заявки #${src.id}` },
+      });
+      return order;
+    });
+  }
+
+  /** Клиент отказался продлевать: напоминания по этой заявке прекращаются. */
+  async stopSubscription(sourceId: number, clientId: number): Promise<boolean> {
+    const res = await this.db.order.updateMany({
+      where: { id: sourceId, clientId, isSubscription: true, nextChargeAt: { not: null } },
+      data: { nextChargeAt: null },
+    });
+    return res.count === 1;
+  }
+
+  /** Подписки с ближайшими списаниями (только выполненные и ещё не остановленные). */
+  listSubscriptions(): Promise<OrderWithClient[]> {
+    return this.db.order.findMany({
+      where: { isSubscription: true, status: 'DONE', nextChargeAt: { not: null } },
+      include: { client: true },
+      orderBy: { nextChargeAt: 'asc' },
+    });
   }
 
   // ── Истечение расчётов ────────────────────────────────────
