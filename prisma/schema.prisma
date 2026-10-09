@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Деньги: BigInt в минимальных единицах (копейки/центы). Проценты — в базисных пунктах (Int).
+// Банковские реквизиты не хранятся нигде.
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum OrderType {
+  PAYMENT_LINK
+  GIFT_CARD
+  TOP_UP
+  OTHER
+}
+
+enum OrderStatus {
+  NEW
+  QUOTED
+  AWAITING_PAYMENT
+  PAYMENT_CHECK
+  IN_PROGRESS
+  DONE
+  CANCELED
+  REJECTED
+  EXPIRED
+  LINK_INVALID
+}
+
+enum PayMode {
+  PREPAY
+  BALANCE
+  PAY_LATER
+}
+
+enum PeriodKind {
+  MONTH
+  YEAR
+  CUSTOM
+}
+
+enum LedgerType {
+  TOPUP
+  ORDER_RESERVE
+  ORDER_RELEASE
+  ORDER_CHARGE
+  PAYMENT_RECEIVED
+  DIFF_ADJUST
+  MANUAL_ADJUST
+  DEBT_OPEN
+  DEBT_REPAY
+}
+
+enum TopUpStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum AttachmentKind {
+  RECEIPT
+  SCREENSHOT
+}
+
+model User {
+  id                 Int        @id @default(autoincrement())
+  telegramId         BigInt     @unique
+  username           String?
+  displayName        String
+  role               Role       @default(CLIENT)
+  status             UserStatus @default(ACTIVE)
+  payLaterEnabled    Boolean    @default(false)
+  payLaterLimitMinor BigInt     @default(0)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  invitesCreated Invite[]      @relation("InviteCreator")
+  invitesUsed    Invite[]      @relation("InviteUser")
+  orders         Order[]       @relation("OrderClient")
+  ledger         LedgerEntry[] @relation("LedgerClient")
+  topUps         TopUp[]
+  events         OrderEvent[]
+}
+
+model Invite {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  note        String?
+  createdById Int
+  createdBy   User      @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  usedById    Int?      @unique
+  usedBy      User?     @relation("InviteUser", fields: [usedById], references: [id], onDelete: Restrict)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model TrustedDomain {
+  id      Int      @id @default(autoincrement())
+  domain  String   @unique
+  addedAt DateTime @default(now())
+}
+
+model PaymentMethod {
+  id              Int     @id @default(autoincrement())
+  title           String
+  instructions    String
+  requiresReceipt Boolean @default(true)
+  isActive        Boolean @default(true)
+  sortOrder       Int     @default(0)
+
+  orders Order[]
+  topUps TopUp[]
+}
+
+// Только метка вида «Visa ··4417» и валюта счёта.
+model AdminCard {
+  id       Int     @id @default(autoincrement())
+  label    String
+  currency String
+  isActive Boolean @default(true)
+
+  orders Order[]
+}
+
+model Order {
+  id       Int         @id @default(autoincrement())
+  clientId Int
+  client   User        @relation("OrderClient", fields: [clientId], references: [id], onDelete: Restrict)
+  type     OrderType
+  status   OrderStatus @default(NEW)
+
+  service          String
+  description      String?
+  url              String?
+  urlDomain        String?
+  giftStore        String?
+  giftRegion       String?
+  giftDenomination String?
+
+  amountMinor BigInt?
+  currency    String?
+
+  isSubscription Boolean     @default(false)
+  periodKind     PeriodKind?
+  periodDays     Int?
+  nextChargeAt   DateTime?
+  renewedFromId  Int?
+  renewedFrom    Order?      @relation("Renewal", fields: [renewedFromId], references: [id])
+  renewals       Order[]     @relation("Renewal")
+
+  comment String?
+
+  payMode     PayMode        @default(PREPAY)
+  payMethodId Int?
+  payMethod   PaymentMethod? @relation(fields: [payMethodId], references: [id])
+
+  // Расчёт (фиксируется на момент QUOTED)
+  rate           Decimal?  @db.Decimal(18, 8)
+  rateSource     String?
+  rateAt         DateTime?
+  fxBufferBp     Int?
+  markupBp       Int?
+  fixedFeeMinor  BigInt?
+  totalMinor     BigInt?
+  quotedAt       DateTime?
+  quoteExpiresAt DateTime?
+
+  reservedMinor BigInt    @default(0)
+  paidAt        DateTime?
+
+  // Фактическое выполнение
+  actualChargeMinor BigInt?
+  actualCurrency    String?
+  cardId            Int?
+  card              AdminCard? @relation(fields: [cardId], references: [id])
+  diffMinor         BigInt?
+
+  rejectReason     String?
+  giftCodeEnc      Bytes?
+  giftCodeDeleteAt DateTime?
+
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events      OrderEvent[]
+  attachments Attachment[]
+  ledger      LedgerEntry[]
+
+  @@index([status])
+  @@index([clientId])
+  @@index([nextChargeAt])
+}
+
+// Append-only (защищено триггером в миграции).
+model OrderEvent {
+  id         Int          @id @default(autoincrement())
+  orderId    Int
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actorId    Int?
+  actor      User?        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  comment    String?
+  createdAt  DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+model TopUp {
+  id            Int           @id @default(autoincrement())
+  clientId      Int
+  client        User          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  amountMinor   BigInt
+  methodId      Int
+  method        PaymentMethod @relation(fields: [methodId], references: [id])
+  status        TopUpStatus   @default(PENDING)
+  confirmedById Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  attachments Attachment[]
+  ledger      LedgerEntry[]
+}
+
+model Attachment {
+  id           Int            @id @default(autoincrement())
+  orderId      Int?
+  order        Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  topUpId      Int?
+  topUp        TopUp?         @relation(fields: [topUpId], references: [id], onDelete: Restrict)
+  kind         AttachmentKind
+  tgFileId     String
+  uploadedById Int
+  createdAt    DateTime       @default(now())
+}
+
+// Append-only журнал. Баланс = SUM(amountMinor) по clientId.
+model LedgerEntry {
+  id          Int        @id @default(autoincrement())
+  clientId    Int
+  client      User       @relation("LedgerClient", fields: [clientId], references: [id], onDelete: Restrict)
+  type        LedgerType
+  amountMinor BigInt
+  orderId     Int?
+  order       Order?     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  topUpId     Int?
+  topUp       TopUp?     @relation(fields: [topUpId], references: [id], onDelete: Restrict)
+  comment     String?
+  createdById Int?
+  createdAt   DateTime   @default(now())
+
+  @@index([clientId])
+  @@index([orderId])
+}
+
+// Дедупликация напоминаний (этап 4).
+model Reminder {
+  id     Int      @id @default(autoincrement())
+  key    String   @unique
+  sentAt DateTime @default(now())
+}
