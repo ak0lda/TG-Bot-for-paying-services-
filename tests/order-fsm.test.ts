@@ -17,7 +17,9 @@ describe('order FSM', () => {
     expect(canTransition(o('QUOTED', 'BALANCE'), 'IN_PROGRESS', 'CLIENT')).toBe(true);
     expect(canTransition(o('QUOTED', 'PAY_LATER'), 'IN_PROGRESS', 'CLIENT')).toBe(true);
     expect(canTransition(o('QUOTED', 'PREPAY'), 'IN_PROGRESS', 'CLIENT')).toBe(false);
-    expect(canTransition(o('QUOTED', 'BALANCE'), 'AWAITING_PAYMENT', 'CLIENT')).toBe(false);
+    // BALANCE при нехватке средств идёт через доплату переводом
+    expect(canTransition(o('QUOTED', 'BALANCE'), 'AWAITING_PAYMENT', 'CLIENT')).toBe(true);
+    expect(canTransition(o('QUOTED', 'PAY_LATER'), 'AWAITING_PAYMENT', 'CLIENT')).toBe(false);
   });
 
   it('enforces actor rights', () => {

@@ -14,7 +14,8 @@ interface Transition {
   guard?: (o: FsmOrder) => boolean;
 }
 
-const prepay = (o: FsmOrder) => o.payMode === 'PREPAY';
+/** PREPAY — перевод на весь итог; BALANCE — перевод только на нехватку сверх баланса. */
+const transfer = (o: FsmOrder) => o.payMode === 'PREPAY' || o.payMode === 'BALANCE';
 const credit = (o: FsmOrder) => o.payMode === 'BALANCE' || o.payMode === 'PAY_LATER';
 
 const T = (from: OrderStatus, to: OrderStatus, actors: Actor[], guard?: (o: FsmOrder) => boolean): Transition =>
@@ -27,7 +28,7 @@ const CANCELABLE: OrderStatus[] = ['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT
 export const TRANSITIONS: readonly Transition[] = [
   T('NEW', 'QUOTED', ['ADMIN']),
   T('EXPIRED', 'QUOTED', ['CLIENT', 'ADMIN']),
-  T('QUOTED', 'AWAITING_PAYMENT', ['CLIENT'], prepay),
+  T('QUOTED', 'AWAITING_PAYMENT', ['CLIENT'], transfer),
   T('QUOTED', 'IN_PROGRESS', ['CLIENT'], credit),
   T('QUOTED', 'EXPIRED', ['SYSTEM']),
   T('AWAITING_PAYMENT', 'PAYMENT_CHECK', ['CLIENT']),

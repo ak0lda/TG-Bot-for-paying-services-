@@ -8,6 +8,7 @@ import { RATE_SCALE, formatRate, parseRate } from '../../domain/pricing.js';
 import { balanceOf } from '../../services/ledger-service.js';
 import { previewSettlement, type Attached, type OrderWithClient } from '../../services/order-service.js';
 import { RateUnavailableError } from '../../services/rates.js';
+import { balanceText } from '../../texts/balance.js';
 import { o as ot } from '../../texts/orders.js';
 
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
@@ -209,7 +210,8 @@ function doneWizard(deps: Deps): WizardDef<DoneData> {
         if (settlement.diffMinor > 0n) lines.push(ot.overpay(formatRub(settlement.diffMinor)));
         if (settlement.diffMinor < 0n) lines.push(ot.underpay(formatRub(settlement.diffMinor)));
         const balance = await balanceOf(deps.db, order.clientId);
-        if (balance !== 0n) lines.push(ot.balanceLine(formatRub(balance)));
+        if (balance !== 0n) lines.push(balanceText(balance));
+        if (order.payMode === 'PAY_LATER' && balance < 0n) lines.push(ot.debtAfterDone(formatRub(-balance)));
         await deps.notifier.toClient(order.client.telegramId, lines.join('\n'));
         if (d.giftCode) await deps.notifier.toClient(order.client.telegramId, ot.giftCodeMsg(order.id, d.giftCode));
       } catch (e) {

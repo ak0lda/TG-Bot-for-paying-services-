@@ -26,6 +26,8 @@ export const t = {
     '/settings [ключ значение]\n' +
     '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n\n' +
     '/orders — открытые заявки\n' +
+    '/debts — долги и переплаты · /client &lt;id&gt; — карточка клиента\n' +
+    '/adjust &lt;id&gt; &lt;±сумма&gt; [комментарий] — корректировка баланса\n' +
     '/rate [ВАЛ [курс|clear]] — курсы\n' +
     '/cards · /card_add &lt;метка&gt; &lt;ВАЛ&gt; · /card_toggle &lt;id&gt;\n' +
     '/methods · /method_add · /method_edit · /method_receipt · /method_toggle',
@@ -41,10 +43,12 @@ export const t = {
     `<code>${escapeHtml(code)}</code> — до ${expiresAt.toISOString().slice(0, 16).replace('T', ' ')} UTC${note ? ` — ${escapeHtml(note)}` : ''}`,
 
   clientsEmpty: 'Клиентов пока нет.',
-  clientLine: (u: User) =>
+  clientLine: (u: User, balance = 0n) =>
     `#${u.id} ${escapeHtml(u.displayName)}${u.username ? ` @${escapeHtml(u.username)}` : ''} — ${
       u.status === 'BLOCKED' ? '🚫 заблокирован' : 'активен'
-    }${u.payLaterEnabled ? `, оплата позже: до ${formatRub(u.payLaterLimitMinor)}` : ''}`,
+    }${u.payLaterEnabled ? `, оплата позже: до ${formatRub(u.payLaterLimitMinor)}` : ''}${
+      balance === 0n ? '' : balance < 0n ? `, долг ${formatRub(-balance)}` : `, баланс ${formatRub(balance)}`
+    }`,
   clientNotFound: 'Клиент не найден.',
   usage: (s: string) => `Использование: ${s}`,
   clientBlocked: (u: User) => `Клиент #${u.id} заблокирован.`,

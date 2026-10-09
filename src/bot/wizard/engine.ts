@@ -17,7 +17,7 @@ export interface Prompt {
 
 export interface Step<D> {
   key: string;
-  skip?: (d: D) => boolean;
+  skip?: (d: D) => boolean | Promise<boolean>;
   prompt: (d: D) => Prompt | Promise<Prompt>;
   /** Возвращает текст ошибки (шаг повторяется) или undefined (шаг принят). */
   handle: (input: WizardInput, d: D, ctx: BotContext) => Promise<string | undefined>;
@@ -122,7 +122,7 @@ export class WizardManager {
 
   private async advance(ctx: BotContext, a: Active, from: number): Promise<void> {
     let i = from;
-    while (i < a.def.steps.length && a.def.steps[i]!.skip?.(a.data)) i++;
+    while (i < a.def.steps.length && (await a.def.steps[i]!.skip?.(a.data))) i++;
     if (i >= a.def.steps.length) {
       this.active.delete(ctx.from!.id);
       await a.def.finish(ctx, a.data);

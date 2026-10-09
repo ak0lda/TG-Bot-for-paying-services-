@@ -5,6 +5,8 @@ import { rateLimit } from './middleware/rate-limit.js';
 import { commonHandlers } from './handlers/common.js';
 import { adminHandlers } from './handlers/admin.js';
 import { adminCatalogHandlers } from './handlers/admin-catalog.js';
+import { balanceHandlers } from './handlers/balance.js';
+import { adminFinanceHandlers } from './handlers/admin-finance.js';
 import { clientHandlers } from './handlers/client.js';
 import { orderCallbacks } from './handlers/order-callbacks.js';
 import { o as ot } from '../texts/orders.js';
@@ -23,6 +25,8 @@ export function createBot(deps: Deps, opts: BotOptions = {}): Bot<BotContext> {
   bot.use(clientHandlers(deps));
   bot.use(adminHandlers(deps));
   bot.use(adminCatalogHandlers(deps));
+  bot.use(adminFinanceHandlers(deps));
+  bot.use(balanceHandlers(deps));
   bot.use(orderCallbacks(deps));
 
   // Кнопки диалогов (w:...)

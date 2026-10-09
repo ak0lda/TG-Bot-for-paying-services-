@@ -1,29 +1,45 @@
-import type { PaymentMethod } from '@prisma/client';
+import type { PayMode, PaymentMethod } from '@prisma/client';
 import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { linkInput } from './helpers.js';
 import { handleOrderError } from '../errors.js';
-import type { OrderWithClient } from '../../services/order-service.js';
+import { formatRub } from '../../domain/money.js';
+import { availableOf } from '../../domain/ledger.js';
+import { balanceOf } from '../../services/ledger-service.js';
+import { PayLaterDeniedError, PayLaterLimitError, type OrderWithClient } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
 
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
-// ── Подтверждение расчёта (QUOTED -> AWAITING_PAYMENT) ───────────────────
+// ── Подтверждение расчёта (QUOTED -> AWAITING_PAYMENT | IN_PROGRESS) ─────
 interface ConfirmData {
   orderId: number;
   version: number;
   clientId: number;
+  payMode: PayMode;
+  /** Нехватка баланса для BALANCE (по состоянию на старт диалога; окончательно считается в транзакции). */
+  shortfall: bigint;
+  needsTransfer: boolean;
+  balance: bigint;
   methodId: number | null;
   methods: PaymentMethod[];
 }
 
 export async function startConfirm(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
-  const methods = await deps.catalog.listMethods(true);
-  if (methods.length === 0) return void (await ctx.reply(ot.noMethods));
+  const total = order.totalMinor ?? 0n;
+  const balance = await balanceOf(deps.db, order.clientId);
+  const shortfall = order.payMode === 'BALANCE' ? total - (availableOf(balance) < total ? availableOf(balance) : total) : 0n;
+  const needsTransfer = order.payMode === 'PREPAY' || (order.payMode === 'BALANCE' && shortfall > 0n);
+  const methods = needsTransfer ? await deps.catalog.listMethods(true) : [];
+  if (needsTransfer && methods.length === 0) return void (await ctx.reply(ot.noMethods));
   const data: ConfirmData = {
     orderId: order.id,
     version: order.version,
     clientId: order.clientId,
+    payMode: order.payMode,
+    shortfall,
+    needsTransfer,
+    balance,
     methodId: methods.length === 1 ? methods[0]!.id : null,
     methods,
   };
@@ -35,8 +51,17 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
     name: 'confirm',
     steps: [
       {
+        key: 'short',
+        skip: (d) => !(d.payMode === 'BALANCE' && d.shortfall > 0n),
+        prompt: (d) => ({
+          text: ot.shortfallPrompt(formatRub(availableOf(d.balance)), formatRub(d.shortfall)),
+          buttons: [[{ label: ot.shortfallBtn(formatRub(d.shortfall)), value: 'ok' }]],
+        }),
+        handle: async (input) => (input.button === 'ok' ? undefined : ot.useButtons),
+      },
+      {
         key: 'method',
-        skip: (d) => d.methodId !== null,
+        skip: (d) => !d.needsTransfer || d.methodId !== null,
         prompt: (d) => ({
           text: ot.chooseMethod,
           buttons: d.methods.map((m) => [{ label: m.title, value: String(m.id) }]),
@@ -53,8 +78,21 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
       try {
         const { expired, order } = await deps.orders.confirmQuote(d.orderId, d.version, d.clientId, d.methodId);
         const view = await deps.presenter.client(order);
-        await ctx.reply(expired ? `${ot.expiredNow}\n\n${view.text}` : view.text, { ...html, reply_markup: view.keyboard });
+        if (expired) {
+          return void (await ctx.reply(`${ot.expiredNow}\n\n${view.text}`, { ...html, reply_markup: view.keyboard }));
+        }
+        if (order.status === 'IN_PROGRESS') {
+          const how = ot.payModeShort[order.payMode];
+          await ctx.reply(`${ot.confirmedInProgress(order.id, how)}\n\n${view.text}`, { ...html, reply_markup: view.keyboard });
+          await deps.presenter.notifyAdmin(order, ot.adminInProgress(order.id, how));
+          return;
+        }
+        await ctx.reply(view.text, { ...html, reply_markup: view.keyboard });
       } catch (e) {
+        if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied));
+        if (e instanceof PayLaterLimitError) {
+          return void (await ctx.reply(ot.payLaterLimit(formatRub(e.limitMinor), formatRub(e.exposureMinor)), html));
+        }
         if (!(await handleOrderError(ctx, deps, e, d.orderId))) throw e;
       }
     },

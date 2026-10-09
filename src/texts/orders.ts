@@ -90,6 +90,26 @@ export const o = {
   orderCreated: (id: number) => `Заявка #${id} создана. Админ скоро рассчитает сумму.`,
   untrustedNote: '⚠️ Домен не из списка доверенных — админ дополнительно проверит ссылку.',
 
+  // ── Способ оплаты ──
+  stepPayMode: 'Как будешь платить мне?',
+  payModeLabel: {
+    PREPAY: '💳 Переводом по заявке',
+    BALANCE: (bal: string) => `💰 С баланса (${bal})`,
+    PAY_LATER: (left: string) => `⏳ Оплатить позже (доступно до ${left})`,
+  },
+  payModeShort: { PREPAY: 'предоплата переводом', BALANCE: 'с баланса', PAY_LATER: 'оплата позже' } as const,
+  payModeUnavailable: 'Этот способ сейчас недоступен. Выбери другой.',
+  shortfallPrompt: (balance: string, short: string) =>
+    `На балансе ${balance}, не хватает <b>${short}</b>.
+Баланс будет зарезервирован под заявку, а разницу нужно доплатить переводом.`,
+  shortfallBtn: (short: string) => `Доплатить ${short} переводом`,
+  confirmedInProgress: (id: number, how: string) => `✅ Заявка #${id} подтверждена (${how}) и передана в работу.`,
+  adminInProgress: (id: number, how: string) => `▶️ Клиент подтвердил заявку #${id} — ${how}. Можно платить.`,
+  payLaterDenied: 'Оплата позже для тебя не включена. Выбери другой способ.',
+  payLaterLimit: (limit: string, exposure: string) =>
+    `Превышен лимит оплаты позже: лимит ${limit}, с этой заявкой набралось бы ${exposure}. Пополни баланс или выбери другой способ.`,
+  debtAfterDone: (debt: string) => `Долг: <b>${debt}</b>. Погасить можно в разделе «💰 Мой баланс».`,
+
   // ── Клиент ──
   quoteReady: (id: number) => `💬 Заявка #${id} рассчитана.`,
   expiredNotice: (id: number) => `⌛ Расчёт по заявке #${id} истёк. Нажми «Пересчитать», чтобы получить актуальную сумму.`,

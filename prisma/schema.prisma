@@ -186,6 +186,8 @@ model Order {
   quoteExpiresAt DateTime?
 
   reservedMinor BigInt    @default(0)
+  /// Сумма, которую клиент должен перевести (PREPAY: весь итог; BALANCE: нехватка сверх баланса).
+  payDueMinor   BigInt?
   paidAt        DateTime?
 
   // Фактическое выполнение

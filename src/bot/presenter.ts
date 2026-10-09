@@ -57,12 +57,17 @@ export class Presenter {
     ];
     const total = this.totalLine(o);
     if (total && !['CANCELED', 'REJECTED'].includes(o.status)) lines.push(`К оплате: <b>${total}</b>`);
+    if (o.payMode !== 'PREPAY') lines.push(`Способ оплаты: ${ot.payModeShort[o.payMode]}`);
+    if (o.payMode === 'BALANCE' && o.reservedMinor > 0n && ['AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS'].includes(o.status)) {
+      lines.push(`С баланса зарезервировано: ${formatRub(o.reservedMinor)}`);
+    }
     if (['QUOTED', 'AWAITING_PAYMENT'].includes(o.status) && o.quoteExpiresAt) {
       lines.push(`Расчёт действует до ${this.fmtTime(o.quoteExpiresAt)}`);
     }
     if (o.status === 'AWAITING_PAYMENT' && o.payMethodId) {
       const m = await this.deps.catalog.getMethod(o.payMethodId);
-      if (m && o.totalMinor != null) lines.push('', ot.payInstructions(formatRub(o.totalMinor), m.title, m.instructions));
+      const due = o.payDueMinor ?? o.totalMinor;
+      if (m && due != null) lines.push('', ot.payInstructions(formatRub(due), m.title, m.instructions));
     }
     if (o.status === 'REJECTED' && o.rejectReason) lines.push(`Причина: ${escapeHtml(o.rejectReason)}`);
     if (o.status === 'LINK_INVALID') lines.push('', LINK_REMINDER);
@@ -105,7 +110,12 @@ export class Presenter {
     if (o.type === 'GIFT_CARD' && o.giftRegion) lines.push(`Регион: ${escapeHtml(o.giftRegion)}`);
     if (o.description) lines.push(`Описание: ${escapeHtml(o.description)}`);
     lines.push(`<b>Сумма: ${this.amountLine(o)}</b>`);
-    lines.push(`Оплата клиента: ${o.payMode === 'PREPAY' ? 'предоплата' : o.payMode === 'BALANCE' ? 'с баланса' : 'оплата позже'}`);
+    let payLine = `Оплата клиента: <b>${ot.payModeShort[o.payMode]}</b>`;
+    if (o.payMode === 'BALANCE' && o.status !== 'NEW' && o.status !== 'QUOTED') {
+      payLine += `, с баланса ${formatRub(o.reservedMinor)}${o.payDueMinor ? `, переводом ${formatRub(o.payDueMinor)}` : ''}`;
+    }
+    if (o.payMode === 'PAY_LATER') payLine += ` (клиент платит после выполнения; лимит ${formatRub(c.payLaterLimitMinor)})`;
+    lines.push(payLine);
     const total = this.totalLine(o);
     if (total) lines.push(`К оплате клиентом: <b>${total}</b>`);
 

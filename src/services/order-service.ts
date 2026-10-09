@@ -2,12 +2,13 @@ import { Prisma } from '@prisma/client';
 import type { Order, OrderStatus, OrderType, PayMode, PeriodKind, User } from '@prisma/client';
 import type { Db } from '../db/client.js';
 import { canTransition, InvalidTransitionError, type Actor } from '../domain/order-fsm.js';
-import { doneEntries, type LedgerInput } from '../domain/ledger.js';
+import { availableOf, doneEntries, payLaterExposure, type LedgerInput } from '../domain/ledger.js';
 import {
   computeQuote, convertToRubMinor, rateFromDecimalString, rateToDecimalString, settlementDiff,
 } from '../domain/pricing.js';
 import { addPeriod } from '../domain/period.js';
 import { encrypt } from './crypto.js';
+import { balanceOf, lockClient } from './ledger-service.js';
 import type { RatesProvider } from './rates.js';
 import type { SettingsService } from './settings-service.js';
 
@@ -30,6 +31,16 @@ export class StaleOrderError extends Error {
   }
 }
 export class OrderDataError extends Error {}
+export class PayLaterDeniedError extends Error {}
+/** Превышен лимит «оплаты позже». */
+export class PayLaterLimitError extends Error {
+  constructor(
+    readonly limitMinor: bigint,
+    readonly exposureMinor: bigint,
+  ) {
+    super('pay-later limit exceeded');
+  }
+}
 
 export interface NewOrderInput {
   clientId: number;
@@ -74,6 +85,12 @@ interface TransitionOpts {
   ledger?: LedgerInput[];
   after?: (tx: Prisma.TransactionClient, order: Order) => Promise<void>;
 }
+
+interface Decision extends TransitionOpts {
+  to: OrderStatus;
+}
+
+const RELEASING: readonly OrderStatus[] = ['EXPIRED', 'CANCELED', 'REJECTED'];
 
 export const rateScaledOf = (o: Pick<Order, 'rate'>): bigint => {
   if (!o.rate) throw new OrderDataError('order has no rate');
@@ -158,45 +175,63 @@ export class OrderService {
   }
 
   // ── Переходы ──────────────────────────────────────────────
-  /** Единственное место, где меняется статус. Версия + право + допустимость проверяются в одной транзакции. */
-  private async transition(
+  /**
+   * Единственное место, где меняется статус. Версия + право + допустимость проверяются в одной транзакции.
+   * `decide` выполняется внутри транзакции и может читать/блокировать данные (баланс, лимиты) перед решением.
+   * Резерв под заявку (BALANCE) автоматически возвращается при уходе в EXPIRED / CANCELED / REJECTED.
+   */
+  private async run(
     orderId: number,
     expectedVersion: number,
-    to: OrderStatus,
     actor: ActorRef,
-    opts: TransitionOpts = {},
+    decide: (tx: Prisma.TransactionClient, order: Order) => Promise<Decision> | Decision,
   ): Promise<OrderWithClient> {
     await this.db.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new OrderNotFoundError();
       if (order.version !== expectedVersion) throw new StaleOrderError(order);
       if (actor.role === 'CLIENT' && order.clientId !== actor.userId) throw new ForbiddenError();
-      if (!canTransition(order, to, actor.role)) throw new InvalidTransitionError(order.status, to, actor.role);
+
+      const d = await decide(tx, order);
+      if (!canTransition(order, d.to, actor.role)) throw new InvalidTransitionError(order.status, d.to, actor.role);
+
+      const patch: Prisma.OrderUncheckedUpdateManyInput = { ...d.patch };
+      const ledger = [...(d.ledger ?? [])];
+      if (order.reservedMinor > 0n && RELEASING.includes(d.to)) {
+        ledger.push({ type: 'ORDER_RELEASE', amountMinor: order.reservedMinor, comment: 'Возврат резерва' });
+        patch.reservedMinor = 0n;
+      }
 
       const res = await tx.order.updateMany({
         where: { id: orderId, version: expectedVersion },
-        data: { ...opts.patch, status: to, version: { increment: 1 } },
+        data: { ...patch, status: d.to, version: { increment: 1 } },
       });
-      if (res.count !== 1) throw new StaleOrderError((await tx.order.findUniqueOrThrow({ where: { id: orderId } })));
+      if (res.count !== 1) throw new StaleOrderError(await tx.order.findUniqueOrThrow({ where: { id: orderId } }));
 
       await tx.orderEvent.create({
-        data: { orderId, actorId: actor.userId, fromStatus: order.status, toStatus: to, comment: opts.comment ?? null },
+        data: { orderId, actorId: actor.userId, fromStatus: order.status, toStatus: d.to, comment: d.comment ?? null },
       });
-      for (const e of opts.ledger ?? []) {
+      for (const e of ledger) {
         await tx.ledgerEntry.create({
           data: {
-            clientId: order.clientId,
-            orderId,
-            type: e.type,
-            amountMinor: e.amountMinor,
-            comment: e.comment ?? null,
-            createdById: actor.userId,
+            clientId: order.clientId, orderId, type: e.type, amountMinor: e.amountMinor,
+            comment: e.comment ?? null, createdById: actor.userId,
           },
         });
       }
-      if (opts.after) await opts.after(tx, await tx.order.findUniqueOrThrow({ where: { id: orderId } }));
+      if (d.after) await d.after(tx, await tx.order.findUniqueOrThrow({ where: { id: orderId } }));
     });
     return this.getOrThrow(orderId);
+  }
+
+  private transition(
+    orderId: number,
+    expectedVersion: number,
+    to: OrderStatus,
+    actor: ActorRef,
+    opts: TransitionOpts = {},
+  ): Promise<OrderWithClient> {
+    return this.run(orderId, expectedVersion, actor, () => ({ to, ...opts }));
   }
 
   /** NEW | EXPIRED -> QUOTED. Курс — ручной (если задан) или ЦБ; параметры расчёта фиксируются в заявке. */
@@ -229,7 +264,14 @@ export class OrderService {
     });
   }
 
-  /** Клиент подтвердил расчёт. Если расчёт уже истёк — заявка переводится в EXPIRED. */
+  /**
+   * Клиент подтвердил расчёт. Что происходит дальше зависит от режима оплаты:
+   * - PREPAY: ждём перевод на весь итог;
+   * - BALANCE: резервируем сколько есть на балансе; если хватает — сразу IN_PROGRESS, иначе ждём доплату переводом;
+   * - PAY_LATER: проверяем лимит и сразу IN_PROGRESS (долг возникнет при выполнении).
+   * Баланс и лимит проверяются под блокировкой строки клиента — параллельные заявки не «потратят» одни и те же деньги.
+   * Если расчёт уже истёк — заявка переводится в EXPIRED.
+   */
   async confirmQuote(
     orderId: number,
     version: number,
@@ -240,9 +282,49 @@ export class OrderService {
     if (o.version === version && o.quoteExpiresAt && o.quoteExpiresAt <= this.now()) {
       return { expired: true, order: await this.transition(orderId, version, 'EXPIRED', SYSTEM, { comment: 'Расчёт истёк' }) };
     }
-    const order = await this.transition(orderId, version, 'AWAITING_PAYMENT', CLIENT(clientId), {
-      comment: 'Клиент подтвердил расчёт',
-      patch: { payMethodId },
+    const order = await this.run(orderId, version, CLIENT(clientId), async (tx, cur) => {
+      if (cur.totalMinor == null) throw new OrderDataError('order is not quoted');
+      const total = cur.totalMinor;
+      await lockClient(tx, cur.clientId);
+
+      if (cur.payMode === 'PREPAY') {
+        return {
+          to: 'AWAITING_PAYMENT' as const, comment: 'Клиент подтвердил расчёт (перевод)',
+          patch: { payMethodId, payDueMinor: total },
+        };
+      }
+
+      if (cur.payMode === 'BALANCE') {
+        const available = availableOf(await balanceOf(tx, cur.clientId));
+        const reserve = available < total ? available : total;
+        const ledger: LedgerInput[] = reserve > 0n
+          ? [{ type: 'ORDER_RESERVE', amountMinor: -reserve, comment: `Резерв под заявку #${cur.id}` }]
+          : [];
+        if (reserve === total) {
+          return {
+            to: 'IN_PROGRESS' as const, comment: 'Клиент подтвердил расчёт (оплата с баланса)',
+            patch: { reservedMinor: total, payDueMinor: 0n, paidAt: this.now() }, ledger,
+          };
+        }
+        return {
+          to: 'AWAITING_PAYMENT' as const, comment: 'Клиент подтвердил расчёт (баланс + доплата переводом)',
+          patch: { reservedMinor: reserve, payDueMinor: total - reserve, payMethodId }, ledger,
+        };
+      }
+
+      // PAY_LATER
+      const user = await tx.user.findUniqueOrThrow({ where: { id: cur.clientId } });
+      if (!user.payLaterEnabled) throw new PayLaterDeniedError();
+      const open = await tx.order.aggregate({
+        where: { clientId: cur.clientId, payMode: 'PAY_LATER', status: { in: ['IN_PROGRESS', 'LINK_INVALID'] }, id: { not: cur.id } },
+        _sum: { totalMinor: true },
+      });
+      const exposure = payLaterExposure(await balanceOf(tx, cur.clientId), open._sum.totalMinor ?? 0n, total);
+      if (exposure > user.payLaterLimitMinor) throw new PayLaterLimitError(user.payLaterLimitMinor, exposure);
+      return {
+        to: 'IN_PROGRESS' as const, comment: 'Клиент подтвердил расчёт (оплата позже)',
+        patch: { payDueMinor: 0n },
+      };
     });
     return { expired: false, order };
   }
@@ -260,13 +342,21 @@ export class OrderService {
     });
   }
 
+  /**
+   * Админ подтвердил поступление перевода. Зачисляем его в журнал; для BALANCE докидываем сумму в резерв,
+   * чтобы под заявку было зарезервировано ровно total.
+   */
   async confirmPayment(orderId: number, version: number, adminId: number): Promise<OrderWithClient> {
-    const o = await this.getOrThrow(orderId);
-    if (o.totalMinor == null) throw new OrderDataError('order is not quoted');
-    return this.transition(orderId, version, 'IN_PROGRESS', ADMIN(adminId), {
-      comment: 'Оплата получена',
-      patch: { paidAt: this.now() },
-      ledger: [{ type: 'PAYMENT_RECEIVED', amountMinor: o.totalMinor, comment: `Оплата заявки #${orderId}` }],
+    return this.run(orderId, version, ADMIN(adminId), (_tx, o) => {
+      if (o.totalMinor == null) throw new OrderDataError('order is not quoted');
+      const due = o.payDueMinor ?? o.totalMinor;
+      const ledger: LedgerInput[] = [{ type: 'PAYMENT_RECEIVED', amountMinor: due, comment: `Оплата заявки #${orderId}` }];
+      const patch: Prisma.OrderUncheckedUpdateManyInput = { paidAt: this.now() };
+      if (o.payMode === 'BALANCE') {
+        ledger.push({ type: 'ORDER_RESERVE', amountMinor: -due, comment: `Резерв под заявку #${orderId}` });
+        patch.reservedMinor = o.reservedMinor + due;
+      }
+      return { to: 'IN_PROGRESS' as const, comment: 'Оплата получена', patch, ledger };
     });
   }
 
@@ -321,6 +411,7 @@ export class OrderService {
       actualCurrency: card.currency,
       cardId: card.id,
       diffMinor: settlement.diffMinor,
+      reservedMinor: 0n,
     };
     if (o.type === 'GIFT_CARD' && input.giftCode) {
       patch.giftCodeEnc = new Uint8Array(encrypt(input.giftCode.trim(), this.encryptionKey));
@@ -331,7 +422,10 @@ export class OrderService {
     const order = await this.transition(orderId, version, 'DONE', ADMIN(adminId), {
       comment: 'Выполнено',
       patch,
-      ledger: doneEntries(o.totalMinor, settlement.diffMinor),
+      ledger: doneEntries(o.totalMinor, settlement.diffMinor, {
+        reservedMinor: o.reservedMinor,
+        payLater: o.payMode === 'PAY_LATER',
+      }),
       after: async (tx, done) => {
         if (input.screenshot) {
           await tx.attachment.create({

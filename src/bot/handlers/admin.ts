@@ -9,6 +9,7 @@ import {
   isSettingKey,
   parseSettingInput,
 } from '../../domain/settings.js';
+import { balancesByClient } from '../../services/ledger-service.js';
 import { t } from '../../texts/ru.js';
 
 const html = { parse_mode: 'HTML' as const };
@@ -44,7 +45,8 @@ export function adminHandlers(deps: Deps): Composer<BotContext> {
   // ── Клиенты ────────────────────────────────────────────────
   c.command('clients', async (ctx) => {
     const list = await deps.users.listClients();
-    await ctx.reply(list.length ? list.map(t.clientLine).join('\n') : t.clientsEmpty, html);
+    const balances = await balancesByClient(deps.db);
+    await ctx.reply(list.length ? list.map((u) => t.clientLine(u, balances.get(u.id) ?? 0n)).join('\n') : t.clientsEmpty, html);
   });
 
   const parseId = (s: string): number | null => (/^\d{1,9}$/.test(s) ? Number(s) : null);
