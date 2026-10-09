@@ -33,6 +33,12 @@ const schema = z
     HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     ENCRYPTION_KEY: encryptionKey,
     TIMEZONE: z.string().default('Europe/Moscow'),
+    /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
+    WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),
+    /** Каталог со сборкой Mini App (по умолчанию webapp/dist относительно рабочей директории). */
+    WEBAPP_DIST: z.string().default('webapp/dist'),
+    /** Максимальный возраст initData, секунд. */
+    WEBAPP_INITDATA_TTL_SEC: z.coerce.number().int().min(60).max(7 * 86_400).default(86_400),
   })
   .superRefine((cfg, ctx) => {
     if (cfg.BOT_MODE === 'webhook') {

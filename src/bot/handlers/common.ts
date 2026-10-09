@@ -1,7 +1,9 @@
 import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { t } from '../../texts/ru.js';
-import { clientMenu } from '../keyboards/menu.js';
+import { buildClientMenu } from '../keyboards/menu.js';
+import { InlineKeyboard } from 'grammy';
+import { o as ot } from '../../texts/orders.js';
 
 const html = { parse_mode: 'HTML' as const };
 
@@ -14,7 +16,7 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
     if (ctx.access === 'ok' && ctx.appUser) {
       const user = ctx.appUser;
       if (user.role === 'ADMIN') await ctx.reply(t.welcomeAdmin, html);
-      else await ctx.reply(t.welcomeClient(user.displayName), { ...html, reply_markup: clientMenu });
+      else await ctx.reply(t.welcomeClient(user.displayName), { ...html, reply_markup: buildClientMenu(deps.config.WEBAPP_URL) });
       return;
     }
 
@@ -34,11 +36,17 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
       return;
     }
     deps.log.info({ userId: res.user.id }, 'client registered via invite');
-    await ctx.reply(t.welcomeClient(res.user.displayName), { ...html, reply_markup: clientMenu });
+    await ctx.reply(t.welcomeClient(res.user.displayName), { ...html, reply_markup: buildClientMenu(deps.config.WEBAPP_URL) });
     const adminChat = deps.config.ADMIN_CHAT_ID ?? deps.config.ADMIN_TELEGRAM_ID;
     await ctx.api
       .sendMessage(Number(adminChat), t.newClientNotice(res.user), html)
       .catch((e: unknown) => deps.log.warn({ err: (e as Error).message }, 'admin notify failed'));
+  });
+
+  c.command('app', async (ctx) => {
+    const url = deps.config.WEBAPP_URL;
+    if (!url || ctx.access !== 'ok') return void (await ctx.reply(ot.appDisabled));
+    await ctx.reply(ot.appOpen, { reply_markup: new InlineKeyboard().webApp(ot.appOpenBtn, url) });
   });
 
   c.command('help', async (ctx) => {

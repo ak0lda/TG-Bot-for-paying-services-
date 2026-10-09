@@ -21,7 +21,9 @@ export interface Sent {
 }
 
 /** Бот целиком (grammY + сервисы + реальная БД) с подставным Telegram API, который записывает вызовы. */
-export function createHarness(url: string) {
+export const BOT_TOKEN = '123456:ABCDEFGHIJKLMNOPQRSTUV';
+
+export function createHarness(url: string, extraEnv: Record<string, string> = {}) {
   const encKey = randomBytes(32);
   const sent: Sent[] = [];
   let updateId = 1;
@@ -37,8 +39,8 @@ export function createHarness(url: string) {
   };
 
   const config = loadConfig({
-    BOT_TOKEN: '123456:ABCDEFGHIJKLMNOPQRSTUV', ADMIN_TELEGRAM_ID: String(ADMIN), DATABASE_URL: url,
-    ENCRYPTION_KEY: encKey.toString('base64'), LOG_LEVEL: 'fatal',
+    BOT_TOKEN, ADMIN_TELEGRAM_ID: String(ADMIN), DATABASE_URL: url,
+    ENCRYPTION_KEY: encKey.toString('base64'), LOG_LEVEL: 'fatal', ...extraEnv,
   });
   const db: Db = createDb(url);
   const api = new Api(config.BOT_TOKEN);

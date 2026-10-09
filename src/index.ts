@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const deps = buildDeps(config, db, log, new Api(config.BOT_TOKEN));
 
   const bot = createBot(deps);
-  const http = createHttpServer({ config, db, bot });
+  const http = await createHttpServer({ deps, bot });
   await http.listen({ host: config.HTTP_HOST, port: config.HTTP_PORT });
   log.info({ port: config.HTTP_PORT }, 'http server listening');
 
@@ -28,7 +28,16 @@ async function main(): Promise<void> {
     { command: 'start', description: 'Главное меню' },
     { command: 'help', description: 'Помощь' },
     { command: 'cancel', description: 'Отменить текущий диалог' },
+    ...(config.WEBAPP_URL ? [{ command: 'app', description: 'Открыть приложение' }] : []),
   ]);
+
+  if (config.WEBAPP_URL) {
+    // Кнопка меню чата открывает Mini App (для всех чатов по умолчанию).
+    await bot.api.setChatMenuButton({
+      menu_button: { type: 'web_app', text: 'Приложение', web_app: { url: config.WEBAPP_URL } },
+    });
+    log.info('mini app menu button set');
+  }
 
   if (config.BOT_MODE === 'webhook') {
     await bot.api.setWebhook(config.WEBHOOK_URL!, {

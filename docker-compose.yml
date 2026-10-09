@@ -47,10 +47,11 @@ services:
     volumes:
       - ./backups:/backups
 
-  # Только для BOT_MODE=webhook:  docker compose --profile webhook up -d
+  # HTTPS через Caddy (сертификат выпускается сам). Нужен для webhook-режима и для Mini App (Telegram требует https):
+  #   docker compose --profile https up -d
   caddy:
     image: caddy:2-alpine
-    profiles: ["webhook"]
+    profiles: ["https", "webhook"]
     restart: unless-stopped
     depends_on: [app]
     ports:
