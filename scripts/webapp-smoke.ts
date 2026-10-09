@@ -108,14 +108,28 @@ async function main() {
   await c.click('text=Netflix');
   await c.waitForSelector('text=Подтвердить расчёт');
   await shot(c, '07-client-quoted');
-  await c.click('text=Подтвердить расчёт');
-  await c.selectOption('select', { label: 'Наличные' });
-  await shot(c, '08-client-method');
-  await c.locator('button:has-text("Подтвердить расчёт")').click();
-  await c.waitForSelector('text=Ждём оплату');
+  await c.click('button:has-text("Подтвердить расчёт")');
+  await c.waitForSelector('text=Ждём реквизиты');
+  ok(true, 'клиент: расчёт подтверждён, способ не выбирается — ждём реквизиты от админа');
+  await shot(c, '08-client-awaiting-requisites');
+
+  // Админ выбирает способ и присылает реквизиты прямо из приложения.
+  await a.reload();
+  await a.click('text=Netflix');
+  await a.waitForSelector('text=Реквизиты клиенту');
+  await a.selectOption('select', { label: 'Наличные' });
+  await a.fill('textarea', 'Передам наличными при встрече');
+  await shot(a, '08b-admin-requisites');
+  await a.click('button:has-text("Отправить реквизиты")');
+  await a.waitForSelector('text=Отправлено: Наличные');
+  ok(true, 'админ: реквизиты отправлены из приложения');
+
+  await c.reload();
+  await c.click('text=Netflix');
+  await c.waitForSelector('button:has-text("Я оплатил")');
   await c.click('button:has-text("Я оплатил")');
   await c.waitForSelector('text=Проверка оплаты');
-  ok(true, 'клиент: подтверждение → оплата → проверка');
+  ok(true, 'клиент: после реквизитов → оплата → проверка');
   await shot(c, '09-client-payment-check');
 
   await a.reload();

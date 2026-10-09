@@ -1,7 +1,7 @@
 import type { BotContext, Deps } from './context.js';
 import { formatRub } from '../domain/money.js';
 import { InvalidTransitionError } from '../domain/order-fsm.js';
-import { ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, StaleOrderError } from '../services/order-service.js';
+import { ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError } from '../services/order-service.js';
 import { RateUnavailableError } from '../services/rates.js';
 import { o as ot } from '../texts/orders.js';
 
@@ -27,6 +27,8 @@ export async function handleOrderError(ctx: BotContext, deps: Deps, e: unknown, 
     if (orderId) await showCurrent(ctx, deps, orderId);
     return true;
   }
+  if (e instanceof RequisitesNotSentError) return void (await ctx.reply(ot.noRequisitesYet)), true;
+  if (e instanceof RequisitesNotAllowedError) return void (await ctx.reply(ot.requisitesNotAllowed)), true;
   if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied)), true;
   if (e instanceof PayLaterLimitError) {
     await ctx.reply(ot.payLaterLimit(formatRub(e.limitMinor), formatRub(e.exposureMinor)), html);

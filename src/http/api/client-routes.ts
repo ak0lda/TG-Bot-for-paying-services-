@@ -47,12 +47,11 @@ export function clientRoutes(deps: Deps) {
           ...base,
           staleLinkHours: settings.staleLinkHours,
           cards: cards.map((c) => ({ id: c.id, label: c.label, currency: c.currency })),
+          methods: (await deps.catalog.listMethods(true)).map((m) => ({ id: m.id, title: m.title, hasSavedText: m.instructions.length > 0 })),
         };
       }
-      const methods = await deps.catalog.listMethods(true);
       return {
         ...base,
-        methods: methods.map((m) => ({ id: m.id, title: m.title, requiresReceipt: m.requiresReceipt })),
         payModes: (await availableModes(deps, u.id)).map((m) => ({ mode: m.mode, label: m.label })),
       };
     });
@@ -75,24 +74,16 @@ export function clientRoutes(deps: Deps) {
     });
 
     app.post('/orders/:id/confirm', async (req) => {
-      const body = versioned.extend({ methodId: z.number().int().positive().optional() }).parse(req.body);
+      const { version } = versioned.parse(req.body);
       const order = await ownOrder(req);
-      const total = order.totalMinor ?? 0n;
-      const available = availableOf(await balanceOf(deps.db, order.clientId));
-      const shortfall = order.payMode === 'BALANCE' ? total - (available < total ? available : total) : 0n;
-      const needsTransfer = order.payMode === 'PREPAY' || (order.payMode === 'BALANCE' && shortfall > 0n);
-
-      let methodId: number | null = null;
-      if (needsTransfer) {
-        const methods = await deps.catalog.listMethods(true);
-        if (methods.length === 0) throw new ApiError(409, 'no_methods', ot.noMethods);
-        const chosen = body.methodId ? methods.find((m) => m.id === body.methodId) : methods.length === 1 ? methods[0] : undefined;
-        if (!chosen) throw new ApiError(422, 'method_required', ot.chooseMethod, { field: 'methodId' });
-        methodId = chosen.id;
-      }
-      const res = await deps.orders.confirmQuote(order.id, body.version, req.actor.id, methodId);
-      if (!res.expired && res.order.status === 'IN_PROGRESS') {
-        await deps.presenter.notifyAdmin(res.order, ot.adminInProgress(res.order.id, ot.payModeShort[res.order.payMode]));
+      // Способ перевода клиент не выбирает: админ выберет его и пришлёт реквизиты.
+      const res = await deps.orders.confirmQuote(order.id, version, req.actor.id, null);
+      if (!res.expired) {
+        if (res.order.status === 'IN_PROGRESS') {
+          await deps.presenter.notifyAdmin(res.order, ot.adminInProgress(res.order.id, ot.payModeShort[res.order.payMode]));
+        } else {
+          await deps.presenter.notifyAdmin(res.order, ot.adminNeedRequisites(res.order.id));
+        }
       }
       return { expired: res.expired, order: await dtoFor(res.order) };
     });
@@ -102,7 +93,8 @@ export function clientRoutes(deps: Deps) {
       const order = await ownOrder(req);
       const method = order.payMethodId ? await deps.catalog.getMethod(order.payMethodId) : null;
       // Скриншот чека в Telegram-боте хранится как file_id; из Mini App его получить нельзя — чек отправляется в чате.
-      if (!method || method.requiresReceipt) {
+      if (!method) throw new ApiError(409, 'requisites_not_sent', ot.noRequisitesYet);
+      if (method.requiresReceipt) {
         throw new ApiError(409, 'receipt_required', 'Для этого способа нужен чек — отправь его в чате с ботом (кнопка «Я оплатил»).');
       }
       const updated = await deps.orders.markPaid(order.id, version, req.actor.id);

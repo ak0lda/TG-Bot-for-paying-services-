@@ -12,13 +12,13 @@ export const c = {
   cardNotFound: 'Карта не найдена.',
   cardToggled: (x: AdminCard) => `Карта #${x.id} ${x.isActive ? 'включена' : 'выключена'}.`,
 
-  methodsEmpty: 'Способов оплаты нет. Добавь: /method_add Название | Инструкции | да',
+  methodsEmpty: 'Способов оплаты нет. Добавь: /method_add СБП | - | да',
   methodLine: (m: PaymentMethod) =>
-    `<b>#${m.id} ${escapeHtml(m.title)}</b> — ${m.isActive ? 'активен' : 'выключен'}, чек ${m.requiresReceipt ? 'нужен' : 'не нужен'}\n${escapeHtml(m.instructions)}`,
+    `<b>#${m.id} ${escapeHtml(m.title)}</b> — ${m.isActive ? 'активен' : 'выключен'}, чек ${m.requiresReceipt ? 'нужен' : 'не нужен'}\n${m.instructions ? `Готовый текст: ${escapeHtml(m.instructions)}` : 'Реквизиты присылаешь вручную по каждой заявке'}`,
   methodsHint:
-    '\n\n/method_add Название | Инструкции | да/нет (чек)\n/method_edit &lt;id&gt; | Новые инструкции\n/method_receipt &lt;id&gt; да/нет\n/method_toggle &lt;id&gt;',
-  methodUsage: 'Использование: /method_add Название | Инструкции | да',
-  methodBad: 'Название 2–40 символов, инструкции 2–1000.',
+    '\n\nПо каждой заявке и пополнению ты сам выбираешь способ кнопкой и присылаешь реквизиты — в базе они не хранятся. «Готовый текст» необязателен (например, для наличных): его можно отправить одной кнопкой.\n\n/method_add Название | Готовый текст или - | да/нет (чек)\n/method_edit &lt;id&gt; | Новый готовый текст (или -)\n/method_receipt &lt;id&gt; да/нет\n/method_toggle &lt;id&gt;',
+  methodUsage: 'Использование: /method_add Название | Готовый текст или - | да',
+  methodBad: 'Название 2–40 символов, готовый текст — до 1000.',
   methodHasCard:
     'В тексте похоже на номер банковской карты. Номера карт в боте не храним — укажи вместо него телефон СБП, банк и имя получателя.',
   methodAdded: (m: PaymentMethod) => `Способ добавлен: #${m.id} ${escapeHtml(m.title)}`,

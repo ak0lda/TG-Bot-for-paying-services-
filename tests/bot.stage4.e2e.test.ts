@@ -6,7 +6,7 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gift-code purge', () => {
   const h = url ? createHarness(url) : (undefined as never);
-  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion } = h ?? ({} as typeof h);
+  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } = h ?? ({} as typeof h);
   afterAll(async () => db.$disconnect());
   beforeEach(() => h.reset());
 
@@ -28,7 +28,7 @@ describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gif
   async function runToDone(id: number, actual = '10,50') {
     await click(ADMIN, `o:${id}:${await orderVersion(id)}:q`);
     await click(CLIENT, `o:${id}:${await orderVersion(id)}:cf`);
-    await click(CLIENT, 'w:method:1');
+    await requisites(id, 1);
     await click(CLIENT, `o:${id}:${await orderVersion(id)}:pd`);
     await photo(CLIENT);
     await click(ADMIN, `o:${id}:${await orderVersion(id)}:pc`);
@@ -143,7 +143,7 @@ describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gif
     const o = await db.order.findFirstOrThrow();
     await click(ADMIN, `o:${o.id}:1:q`);
     await click(CLIENT, `o:${o.id}:2:cf`);
-    await click(CLIENT, 'w:method:3'); // наличные — без чека
+    await requisites(o.id, 3, 'наличные'); // без чека
     await click(CLIENT, `o:${o.id}:3:pd`);
     await click(ADMIN, `o:${o.id}:4:pc`);
     await click(ADMIN, `o:${o.id}:5:dn`);

@@ -10,14 +10,17 @@ const m = (x: bigint | null | undefined): string | null => (x == null ? null : x
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
 export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew';
-export type AdminAction = 'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject';
+export type AdminAction = 'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
 
 /** Список доступных действий выводится из автомата статусов — UI не может предложить недопустимое. */
-export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscription'>): ClientAction[] {
+export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscription' | 'payMethodId'>): ClientAction[] {
   const out: ClientAction[] = [];
   for (const to of allowedTransitions(o, 'CLIENT')) {
     if (to === 'CANCELED') out.push('cancel');
-    else if (to === 'PAYMENT_CHECK') out.push('pay');
+    // «Я оплатил» доступно, когда админ уже прислал реквизиты.
+    else if (to === 'PAYMENT_CHECK') {
+      if (o.payMethodId != null) out.push('pay');
+    }
     else if (to === 'QUOTED') out.push('requote');
     else if (to === 'AWAITING_PAYMENT' || (to === 'IN_PROGRESS' && o.status === 'QUOTED')) out.push('confirm');
     else if (to === 'IN_PROGRESS' && o.status === 'LINK_INVALID') out.push('new_link');
@@ -36,6 +39,7 @@ export function adminActions(o: Pick<Order, 'status' | 'payMode'>): AdminAction[
     else if (to === 'LINK_INVALID') out.push('link_invalid');
     else if (to === 'REJECTED') out.push('reject');
   }
+  if (o.status === 'AWAITING_PAYMENT') out.push('send_requisites');
   return [...new Set(out)];
 }
 
@@ -81,13 +85,15 @@ export function orderDto(o: Order, role: Actor, extra: OrderDtoExtras = {}) {
     rejectReason: o.rejectReason,
     createdAt: o.createdAt.toISOString(),
     actions: role === 'ADMIN' ? adminActions(o) : clientActions(o),
+    // Реквизиты присылает админ в чат и в БД не хранятся; здесь только состояние и необязательный готовый текст способа.
     payment:
-      o.status === 'AWAITING_PAYMENT' && extra.method
+      o.status === 'AWAITING_PAYMENT'
         ? {
-            method: extra.method.title,
-            instructions: extra.method.instructions,
-            requiresReceipt: extra.method.requiresReceipt,
+            method: extra.method?.title ?? null,
+            instructions: extra.method?.instructions ?? '',
+            requiresReceipt: extra.method?.requiresReceipt ?? true,
             dueMinor: m(dueMinor),
+            awaitingRequisites: o.payMethodId == null,
           }
         : null,
     client: extra.client

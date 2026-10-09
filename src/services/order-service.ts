@@ -32,6 +32,10 @@ export class StaleOrderError extends Error {
 }
 export class OrderDataError extends Error {}
 export class PayLaterDeniedError extends Error {}
+/** Клиент пытается отметить оплату до того, как админ прислал реквизиты. */
+export class RequisitesNotSentError extends Error {}
+/** Реквизиты можно отправлять только пока заявка ждёт оплату. */
+export class RequisitesNotAllowedError extends Error {}
 /** Для подписки уже есть живая заявка-продление. */
 export class RenewalExistsError extends Error {
   constructor(readonly order: Order) {
@@ -336,17 +340,41 @@ export class OrderService {
   }
 
   markPaid(orderId: number, version: number, clientId: number, receipt?: Attached): Promise<OrderWithClient> {
-    return this.transition(orderId, version, 'PAYMENT_CHECK', CLIENT(clientId), {
-      comment: receipt ? 'Клиент отметил оплату, приложил чек' : 'Клиент отметил оплату',
-      after: async (tx, order) => {
-        if (receipt) {
-          await tx.attachment.create({
-            data: { orderId: order.id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
-          });
-        }
-      },
+    return this.run(orderId, version, CLIENT(clientId), (_tx, o) => {
+      // Платить можно только по реквизитам, которые прислал админ (способ фиксируется в момент отправки).
+      if (o.status === 'AWAITING_PAYMENT' && o.payMethodId == null) throw new RequisitesNotSentError();
+      return {
+        to: 'PAYMENT_CHECK' as const,
+        comment: receipt ? 'Клиент отметил оплату, приложил чек' : 'Клиент отметил оплату',
+        after: async (tx: Prisma.TransactionClient, order: Order) => {
+          if (receipt) {
+            await tx.attachment.create({
+              data: { orderId: order.id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
+            });
+          }
+        },
+      };
     });
   }
+
+  /**
+   * Админ выбрал способ перевода и отправил реквизиты (сам текст нигде не сохраняется).
+   * Статус не меняется; в журнал событий пишется запись. Можно отправить повторно или выбрать другой способ.
+   */
+  async setPayMethod(orderId: number, version: number, adminId: number, methodId: number, title: string): Promise<OrderWithClient> {
+    await this.db.$transaction(async (tx) => {
+      const o = await tx.order.findUnique({ where: { id: orderId } });
+      if (!o) throw new OrderNotFoundError();
+      if (o.version !== version) throw new StaleOrderError(o);
+      if (o.status !== 'AWAITING_PAYMENT') throw new RequisitesNotAllowedError();
+      await tx.order.update({ where: { id: orderId }, data: { payMethodId: methodId } });
+      await tx.orderEvent.create({
+        data: { orderId, actorId: adminId, fromStatus: o.status, toStatus: o.status, comment: `Реквизиты отправлены клиенту: ${title}` },
+      });
+    });
+    return this.getOrThrow(orderId);
+  }
+
 
   /**
    * Админ подтвердил поступление перевода. Зачисляем его в журнал; для BALANCE докидываем сумму в резерв,

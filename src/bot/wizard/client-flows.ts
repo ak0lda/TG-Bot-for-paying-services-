@@ -1,4 +1,4 @@
-import type { PayMode, PaymentMethod } from '@prisma/client';
+import type { PayMode } from '@prisma/client';
 import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { linkInput } from './helpers.js';
@@ -12,6 +12,7 @@ import { o as ot } from '../../texts/orders.js';
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 // ── Подтверждение расчёта (QUOTED -> AWAITING_PAYMENT | IN_PROGRESS) ─────
+// Способ перевода клиент не выбирает: админ сам выберет способ и пришлёт реквизиты.
 interface ConfirmData {
   orderId: number;
   version: number;
@@ -19,31 +20,21 @@ interface ConfirmData {
   payMode: PayMode;
   /** Нехватка баланса для BALANCE (по состоянию на старт диалога; окончательно считается в транзакции). */
   shortfall: bigint;
-  needsTransfer: boolean;
   balance: bigint;
-  methodId: number | null;
-  methods: PaymentMethod[];
 }
 
 export async function startConfirm(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
   const total = order.totalMinor ?? 0n;
   const balance = await balanceOf(deps.db, order.clientId);
   const shortfall = order.payMode === 'BALANCE' ? total - (availableOf(balance) < total ? availableOf(balance) : total) : 0n;
-  const needsTransfer = order.payMode === 'PREPAY' || (order.payMode === 'BALANCE' && shortfall > 0n);
-  const methods = needsTransfer ? await deps.catalog.listMethods(true) : [];
-  if (needsTransfer && methods.length === 0) return void (await ctx.reply(ot.noMethods));
-  const data: ConfirmData = {
+  await deps.wizards.start(ctx, confirmWizard(deps), {
     orderId: order.id,
     version: order.version,
     clientId: order.clientId,
     payMode: order.payMode,
     shortfall,
-    needsTransfer,
     balance,
-    methodId: methods.length === 1 ? methods[0]!.id : null,
-    methods,
-  };
-  await deps.wizards.start(ctx, confirmWizard(deps), data);
+  } satisfies ConfirmData);
 }
 
 function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
@@ -59,24 +50,10 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
         }),
         handle: async (input) => (input.button === 'ok' ? undefined : ot.useButtons),
       },
-      {
-        key: 'method',
-        skip: (d) => !d.needsTransfer || d.methodId !== null,
-        prompt: (d) => ({
-          text: ot.chooseMethod,
-          buttons: d.methods.map((m) => [{ label: m.title, value: String(m.id) }]),
-        }),
-        handle: async (input, d) => {
-          const m = d.methods.find((x) => String(x.id) === input.button);
-          if (!m) return ot.useButtons;
-          d.methodId = m.id;
-          return undefined;
-        },
-      },
     ],
     finish: async (ctx, d) => {
       try {
-        const { expired, order } = await deps.orders.confirmQuote(d.orderId, d.version, d.clientId, d.methodId);
+        const { expired, order } = await deps.orders.confirmQuote(d.orderId, d.version, d.clientId, null);
         const view = await deps.presenter.client(order);
         if (expired) {
           return void (await ctx.reply(`${ot.expiredNow}\n\n${view.text}`, { ...html, reply_markup: view.keyboard }));
@@ -87,7 +64,9 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
           await deps.presenter.notifyAdmin(order, ot.adminInProgress(order.id, how));
           return;
         }
-        await ctx.reply(view.text, { ...html, reply_markup: view.keyboard });
+        // AWAITING_PAYMENT: ждём реквизиты от админа.
+        await ctx.reply(ot.waitRequisites(order.id, formatRub(order.payDueMinor ?? order.totalMinor ?? 0n)), { ...html, reply_markup: view.keyboard });
+        await deps.presenter.notifyAdmin(order, ot.adminNeedRequisites(order.id));
       } catch (e) {
         if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied));
         if (e instanceof PayLaterLimitError) {
@@ -109,6 +88,7 @@ interface PaidData {
 }
 
 export async function startPaid(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
+  if (!order.payMethodId) return void (await ctx.reply(ot.noRequisitesYet));
   const method = order.payMethodId ? await deps.catalog.getMethod(order.payMethodId) : null;
   await deps.wizards.start(ctx, paidWizard(deps), {
     orderId: order.id,

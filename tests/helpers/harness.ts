@@ -104,12 +104,18 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
     const code = /start=([\w-]+)/.exec(lastTo(ADMIN)!.text)![1]!;
     await say(CLIENT, `/start ${code}`);
     await say(ADMIN, '/card_add Visa ··4417 USD');
-    await say(ADMIN, '/method_edit 1 | СБП, +7 900 000-00-00, Тест-банк');
     await say(ADMIN, '/rate USD 90');
     return db.user.findFirstOrThrow({ where: { role: 'CLIENT' } });
   }
 
+  /** Админ выбирает способ для заявки и присылает реквизиты (как в боте: кнопка способа -> текст). */
+  async function requisites(orderId: number, methodId: number, text = 'Реквизиты: тестовый перевод') {
+    const o = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+    await click(ADMIN, `r:${orderId}:${o.version}:${methodId}`);
+    await say(ADMIN, text);
+  }
+
   const orderVersion = async (id: number) => (await db.order.findUniqueOrThrow({ where: { id } })).version;
 
-  return { db, deps, bot, sent, encKey, say, photo, click, lastTo, allTo, alerts, cbData, reset, onboard, orderVersion };
+  return { db, deps, bot, sent, encKey, say, photo, click, lastTo, allTo, alerts, cbData, reset, onboard, orderVersion, requisites };
 }

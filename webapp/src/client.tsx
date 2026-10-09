@@ -30,22 +30,19 @@ export function OrderList({ open }: { open: (id: number) => void }) {
 }
 
 // ── Карточка заявки (клиент) ─────────────────────────────────
-type Panel = null | 'confirm' | 'cancel' | 'new_link' | 'renew' | 'receipt';
+type Panel = null | 'cancel' | 'new_link' | 'renew' | 'receipt';
 
 export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChanged: () => void }) {
   const { data, error, loading, reload, setData } = useLoad(() => api.order(id), [id]);
   const { busy, run } = useAction(reload);
   const toast = useToast();
   const [panel, setPanel] = useState<Panel>(null);
-  const [methodId, setMethodId] = useState<number | null>(null);
   const [url, setUrl] = useState('');
   const [payMode, setPayMode] = useState<string>('PREPAY');
 
   if (loading && !data) return <Spinner />;
   if (error || !data) return <ErrorBox text={error ?? 'Заявка не найдена'} onRetry={reload} />;
   const o = data.order;
-  const methods = me.methods ?? [];
-  const selectedMethod = methodId ?? methods[0]?.id ?? null;
 
   const apply = (order: Order) => {
     setData({ order });
@@ -77,11 +74,16 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
         <Row k="Создана">{formatDate(o.createdAt)}</Row>
       </Card>
 
-      {o.payment && (
+      {o.payment?.awaitingRequisites && (
+        <div className="warnbox">
+          ⏳ <b>Ждём реквизиты</b> — админ пришлёт их сообщением в чат с ботом. Не переводите деньги, пока не получите реквизиты.
+          <div className="sub">К оплате: <b>{rub(o.payment.dueMinor)}</b></div>
+        </div>
+      )}
+      {o.payment && !o.payment.awaitingRequisites && (
         <div className="warnbox">
           <b>Переведите {rub(o.payment.dueMinor)}</b> — {o.payment.method}
-          <div className="pre" style={{ marginTop: 6 }}>{o.payment.instructions}</div>
-          <div className="sub">После перевода нажмите «Я оплатил».{o.payment.requiresReceipt ? ' Чек отправляется в чате с ботом.' : ''}</div>
+          <div className="sub">Реквизиты — в сообщении бота в чате. После перевода нажмите «Я оплатил».{o.payment.requiresReceipt ? ' Чек отправляется в чате с ботом.' : ''}</div>
         </div>
       )}
       {o.status === 'LINK_INVALID' && <div className="errbox">Ссылка не работает. Пришлите новую — ваша оплата сохранена.</div>}
@@ -93,15 +95,6 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
         </div>
       )}
 
-      {panel === 'confirm' && methods.length > 1 && o.payMode !== 'PAY_LATER' && (
-        <Card>
-          <Field label="Способ перевода">
-            <select value={selectedMethod ?? ''} onChange={(e) => setMethodId(Number(e.target.value))}>
-              {methods.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
-            </select>
-          </Field>
-        </Card>
-      )}
       {(panel === 'new_link' || panel === 'renew') && (
         <Card>
           <Field label="Свежая https-ссылка на оплату">
@@ -119,11 +112,7 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
       )}
       {panel === 'cancel' && <div className="errbox">Отменить заявку #{o.id}?</div>}
 
-      {o.actions.includes('confirm') && (
-        panel === 'confirm' || (methods.length <= 1) || o.payMode === 'PAY_LATER'
-          ? <Button busy={busy} onClick={() => act('confirm', { methodId: selectedMethod }, 'Расчёт подтверждён').then(() => undefined)}>Подтвердить расчёт</Button>
-          : <Button onClick={() => setPanel('confirm')}>Подтвердить расчёт</Button>
-      )}
+      {o.actions.includes('confirm') && <Button busy={busy} onClick={() => void act('confirm', {}, 'Расчёт подтверждён')}>Подтвердить расчёт</Button>}
       {o.actions.includes('pay') && (
         <Button busy={busy} onClick={() => (o.payment?.requiresReceipt ? setPanel('receipt') : void act('paid', {}, 'Отправлено на проверку'))}>Я оплатил</Button>
       )}

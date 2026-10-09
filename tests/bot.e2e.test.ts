@@ -8,7 +8,7 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
   const h = url ? createHarness(url) : (undefined as never);
-  const { db, deps, sent, encKey, say, photo, click, lastTo, allTo, cbData, onboard } = h ?? ({} as typeof h);
+  const { db, deps, sent, encKey, say, photo, click, lastTo, allTo, cbData, onboard, requisites } = h ?? ({} as typeof h);
   afterAll(async () => db.$disconnect());
   beforeEach(() => h.reset());
 
@@ -59,13 +59,33 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
     expect(await db.orderEvent.count({ where: { toStatus: 'QUOTED' } })).toBe(1);
     expect(sent.some((x) => x.method === 'answerCallbackQuery' && /Карточка устарела/.test(x.text))).toBe(true);
 
-    // клиент подтверждает, выбирает метод
+    // клиент подтверждает расчёт; способ перевода выбирает админ и сам присылает реквизиты
     expect(allTo(CLIENT)).toMatch(/964 ₽/);
     await click(CLIENT, `o:${order.id}:2:cf`);
-    await click(CLIENT, 'w:method:1');
     order = await db.order.findFirstOrThrow();
-    expect(order.status).toBe('AWAITING_PAYMENT');
-    expect(lastTo(CLIENT)!.text).toMatch(/Тест-банк/);
+    expect(order).toMatchObject({ status: 'AWAITING_PAYMENT', payMethodId: null, payDueMinor: 96_400n });
+    expect(lastTo(CLIENT)!.text).toMatch(/Админ пришлёт реквизиты/);
+    expect(lastTo(ADMIN)!.text).toMatch(/выбери способ и отправь реквизиты/);
+    expect(cbData(lastTo(ADMIN))).toEqual([`r:${order.id}:3:1`, `r:${order.id}:3:2`, `r:${order.id}:3:3`, `o:${order.id}:3:rj`]);
+
+    // до реквизитов «Я оплатил» недоступно, даже если нажать устаревшую/подделанную кнопку
+    await click(CLIENT, `o:${order.id}:3:pd`);
+    expect(lastTo(CLIENT)!.text).toMatch(/ещё не прислал реквизиты/);
+    expect((await db.order.findFirstOrThrow()).status).toBe('AWAITING_PAYMENT');
+
+    await requisites(order.id, 1, 'СБП +7 900 111-22-33, Тест-банк, MARKER-7781');
+    order = await db.order.findFirstOrThrow();
+    expect(order).toMatchObject({ status: 'AWAITING_PAYMENT', payMethodId: 1, version: 3 });
+    expect(allTo(CLIENT)).toMatch(/Тест-банк, MARKER-7781/);
+    expect(allTo(CLIENT)).toMatch(/К оплате: <b>964 ₽<\/b>/);
+    expect(cbData(lastTo(CLIENT))).toEqual([`o:${order.id}:3:pd`, `o:${order.id}:3:cx`]);
+    expect(sent.some((x) => x.method === 'deleteMessage' && x.chat === ADMIN)).toBe(true); // реквизиты убраны из чата админа
+    // текст реквизитов нигде в БД не сохраняется (журнал пишет только «способ»)
+    for (const t of ['Order', 'OrderEvent', 'TopUp', 'LedgerEntry', 'Attachment', 'PaymentMethod', 'Setting', 'Reminder']) {
+      const rows = await db.$queryRawUnsafe<Array<{ n: bigint }>>(`SELECT count(*) AS n FROM "${t}" x WHERE x::text LIKE '%MARKER-7781%'`);
+      expect(rows[0]!.n, t).toBe(0n);
+    }
+    expect((await db.orderEvent.findMany({ orderBy: { id: 'desc' }, take: 1 }))[0]!.comment).toBe('Реквизиты отправлены клиенту: СБП');
 
     // «Я оплатил» + чек
     await click(CLIENT, `o:${order.id}:3:pd`);
@@ -105,7 +125,8 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
     expect(allTo(CLIENT)).toMatch(/Доплата/);
 
     const events = await db.orderEvent.findMany({ orderBy: { id: 'asc' } });
-    expect(events.map((e) => e.toStatus)).toEqual(['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS', 'DONE']);
+    // второе AWAITING_PAYMENT — запись «реквизиты отправлены» (статус не менялся)
+    expect(events.map((e) => e.toStatus)).toEqual(['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS', 'DONE']);
 
     // старая кнопка после DONE ничего не ломает
     await click(ADMIN, `o:${order.id}:5:dn`);
@@ -127,7 +148,7 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
 
     await click(ADMIN, `o:${order.id}:1:q`);
     await click(CLIENT, `o:${order.id}:2:cf`);
-    await click(CLIENT, 'w:method:3'); // «Наличные» — чек не нужен
+    await requisites(order.id, 3, 'Передам наличными'); // «Наличные» — чек не нужен
     await click(CLIENT, `o:${order.id}:3:pd`);
     order = await db.order.findFirstOrThrow();
     expect(order.status).toBe('PAYMENT_CHECK');
@@ -186,7 +207,7 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
 
     await click(ADMIN, `o:${order.id}:1:q`);
     await click(CLIENT, `o:${order.id}:2:cf`);
-    await click(CLIENT, 'w:method:1');
+    await requisites(order.id, 1);
     await click(CLIENT, `o:${order.id}:3:pd`);
     await photo(CLIENT);
     await click(ADMIN, `o:${order.id}:4:pc`);
@@ -220,7 +241,7 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
     // оплата -> в работе -> ссылка не работает -> новая ссылка
     let ver = (await db.order.findUniqueOrThrow({ where: { id } })).version;
     await click(CLIENT, `o:${id}:${ver}:cf`);
-    await click(CLIENT, 'w:method:3');
+    await requisites(id, 3);
     ver = (await db.order.findUniqueOrThrow({ where: { id } })).version;
     await click(CLIENT, `o:${id}:${ver}:pd`);
     ver = (await db.order.findUniqueOrThrow({ where: { id } })).version;
@@ -245,7 +266,6 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
     await click(ADMIN, `o:${id}:1:q`);
     await db.order.update({ where: { id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
     await click(CLIENT, `o:${id}:2:cf`);
-    await click(CLIENT, 'w:method:1');
     expect((await db.order.findUniqueOrThrow({ where: { id } })).status).toBe('EXPIRED');
     expect(allTo(CLIENT)).toMatch(/Расчёт истёк/);
   });

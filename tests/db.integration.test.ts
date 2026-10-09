@@ -3,7 +3,7 @@ import { createDb, type Db } from '../src/db/client.js';
 import { bootstrapDefaults } from '../src/db/bootstrap.js';
 import { InviteService } from '../src/services/invite-service.js';
 import { SettingsService } from '../src/services/settings-service.js';
-import { ADMIN, OrderService, StaleOrderError } from '../src/services/order-service.js';
+import { ADMIN, OrderService, RequisitesNotSentError, StaleOrderError } from '../src/services/order-service.js';
 import { balanceOf } from '../src/services/ledger-service.js';
 import { RATE_SCALE } from '../src/domain/pricing.js';
 
@@ -79,6 +79,9 @@ describe.skipIf(!url)('db integration', () => {
     const quoted = await orders.quote(o.id, o.version, ADMIN(admin.id));
     // PREPAY: клиент подтвердил и «оплатил» — доводим до PAYMENT_CHECK напрямую
     const confirmed = await orders.confirmQuote(o.id, quoted.version, client.id, null);
+    // оплату можно отметить только после того, как админ прислал реквизиты (выбрал способ)
+    await expect(orders.markPaid(o.id, confirmed.order.version, client.id)).rejects.toBeInstanceOf(RequisitesNotSentError);
+    await orders.setPayMethod(o.id, confirmed.order.version, admin.id, 1, 'СБП');
     const paid = await orders.markPaid(o.id, confirmed.order.version, client.id);
 
     const results = await Promise.allSettled([

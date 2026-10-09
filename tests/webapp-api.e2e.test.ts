@@ -74,13 +74,18 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
     const me = await call(CLIENT, 'GET', '/me');
     expect(me.status).toBe(200);
     expect(me.json).toMatchObject({ role: 'CLIENT', balanceMinor: '0' });
-    expect(me.json.methods.length).toBe(3);
+    expect(me.json.methods).toBeUndefined(); // способ перевода выбирает админ, клиенту список не нужен
     expect(me.json.payModes).toEqual([{ mode: 'PREPAY', label: expect.any(String) }]);
     expect(me.headers['cache-control']).toBe('no-store');
 
     const admin = await call(ADMIN, 'GET', '/me');
     expect(admin.json).toMatchObject({ role: 'ADMIN' });
     expect(admin.json.cards).toHaveLength(1);
+    expect(admin.json.methods).toEqual([
+      { id: 1, title: 'СБП', hasSavedText: false },
+      { id: 2, title: 'Прямой перевод', hasSavedText: false },
+      { id: 3, title: 'Наличные', hasSavedText: false },
+    ]);
 
     await say(ADMIN, `/block ${(await db.user.findFirstOrThrow({ where: { telegramId: BigInt(CLIENT) } })).id}`);
     expect((await call(CLIENT, 'GET', '/me')).status).toBe(403);
@@ -153,12 +158,25 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
 
     const mine = await call(CLIENT, 'GET', `/orders/${id}`);
     expect(mine.json.order.actions).toEqual(['confirm', 'cancel']);
-    expect((await call(CLIENT, 'POST', `/orders/${id}/confirm`, { version: 2 })).json.error).toBe('method_required');
-    expect((await call(CLIENT, 'POST', `/orders/${id}/confirm`, { version: 2, methodId: 999 })).json.error).toBe('method_required');
+    // клиент способ не выбирает; админ получает карточку «пришли реквизиты»
+    const conf = await call(CLIENT, 'POST', `/orders/${id}/confirm`, { version: 2, methodId: 3 /* лишнее поле игнорируется */ });
+    expect(conf.json.order).toMatchObject({ status: 'AWAITING_PAYMENT', dueMinor: '96400', actions: ['cancel'] });
+    expect(conf.json.order.payment).toMatchObject({ method: null, awaitingRequisites: true });
+    expect(allTo(ADMIN)).toMatch(/выбери способ и отправь реквизиты/);
+    expect((await call(CLIENT, 'POST', `/orders/${id}/paid`, { version: 3 })).json.error).toBe('requisites_not_sent');
 
-    const conf = await call(CLIENT, 'POST', `/orders/${id}/confirm`, { version: 2, methodId: 1 });
-    expect(conf.json.order).toMatchObject({ status: 'AWAITING_PAYMENT', dueMinor: '96400' });
-    expect(conf.json.order.payment).toMatchObject({ method: 'СБП', requiresReceipt: true });
+    // админ присылает реквизиты (только он; с проверками)
+    const req = (body: object, who = ADMIN) => call(who, 'POST', `/admin/orders/${id}/requisites`, { version: 3, ...body });
+    expect((await req({ methodId: 1, text: 'x' }, CLIENT)).status).toBe(403);
+    expect((await req({ methodId: 999, text: 'СБП +7 900 111-22-33' })).json.error).toBe('method_not_found');
+    expect((await req({ methodId: 1 })).json.error).toBe('text_required'); // готового текста у способа нет
+    expect((await req({ methodId: 1, text: 'СБП +7 900 111-22-33, MARKER-API-1', version: 2 })).json.error).toBe('stale');
+    const sent1 = await req({ methodId: 1, text: 'СБП +7 900 111-22-33, MARKER-API-1' });
+    expect(sent1.json.order).toMatchObject({ status: 'AWAITING_PAYMENT', version: 3 });
+    expect(sent1.json.order.payment).toMatchObject({ method: 'СБП', requiresReceipt: true, awaitingRequisites: false });
+    expect(allTo(CLIENT)).toMatch(/MARKER-API-1/); // клиенту ушло в чат
+    expect(JSON.stringify((await call(CLIENT, 'GET', `/orders/${id}`)).json)).not.toContain('MARKER-API-1'); // API текст не отдаёт
+    expect((await call(CLIENT, 'GET', `/orders/${id}`)).json.order.actions).toEqual(['pay', 'cancel']);
     expect((await call(CLIENT, 'POST', `/orders/${id}/paid`, { version: 3 })).json.error).toBe('receipt_required'); // чек — только через бота
 
     // клиент меняет способ на «Наличные» (чек не нужен) — через повторное подтверждение нельзя; поэтому делаем новую заявку
@@ -167,7 +185,8 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
 
     const o2 = (await call(CLIENT, 'POST', '/orders', goodOrder)).json.order;
     await call(ADMIN, 'POST', `/admin/orders/${o2.id}/quote`, { version: o2.version });
-    await call(CLIENT, 'POST', `/orders/${o2.id}/confirm`, { version: 2, methodId: 3 });
+    await call(CLIENT, 'POST', `/orders/${o2.id}/confirm`, { version: 2 });
+    await call(ADMIN, 'POST', `/admin/orders/${o2.id}/requisites`, { version: 3, methodId: 3, text: 'Наличными при встрече' });
     const paid = await call(CLIENT, 'POST', `/orders/${o2.id}/paid`, { version: 3 });
     expect(paid.json.order).toMatchObject({ status: 'PAYMENT_CHECK', actions: ['cancel'] });
     expect(allTo(ADMIN)).toMatch(/отметил оплату/);
@@ -204,7 +223,8 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
     await setup();
     const g = (await call(CLIENT, 'POST', '/orders', { type: 'GIFT_CARD', service: 'Steam', region: 'TR', amount: '25', currency: 'USD' })).json.order;
     await call(ADMIN, 'POST', `/admin/orders/${g.id}/quote`, { version: 1 });
-    await call(CLIENT, 'POST', `/orders/${g.id}/confirm`, { version: 2, methodId: 3 });
+    await call(CLIENT, 'POST', `/orders/${g.id}/confirm`, { version: 2 });
+    await call(ADMIN, 'POST', `/admin/orders/${g.id}/requisites`, { version: 3, methodId: 3, text: 'Наличными' });
     await call(CLIENT, 'POST', `/orders/${g.id}/paid`, { version: 3 });
     await call(ADMIN, 'POST', `/admin/orders/${g.id}/confirm-payment`, { version: 4 });
 
@@ -229,7 +249,8 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
     const sub = (await call(CLIENT, 'POST', '/orders', { ...goodOrder, period: 'MONTH' })).json.order;
     expect(sub).toMatchObject({ isSubscription: true, periodKind: 'MONTH' });
     await call(ADMIN, 'POST', `/admin/orders/${sub.id}/quote`, { version: 1 });
-    await call(CLIENT, 'POST', `/orders/${sub.id}/confirm`, { version: 2, methodId: 3 });
+    await call(CLIENT, 'POST', `/orders/${sub.id}/confirm`, { version: 2 });
+    await call(ADMIN, 'POST', `/admin/orders/${sub.id}/requisites`, { version: 3, methodId: 3, text: 'Наличными' });
     await call(CLIENT, 'POST', `/orders/${sub.id}/paid`, { version: 3 });
     await call(ADMIN, 'POST', `/admin/orders/${sub.id}/confirm-payment`, { version: 4 });
 
@@ -255,7 +276,7 @@ describe.skipIf(!url)('Mini App API (initData auth, real DB)', () => {
     const r = renewed.json.order;
     await call(ADMIN, 'POST', `/admin/orders/${r.id}/quote`, { version: 1 });
     await db.order.update({ where: { id: r.id }, data: { quoteExpiresAt: new Date(Date.now() - 1000) } });
-    expect((await call(CLIENT, 'POST', `/orders/${r.id}/confirm`, { version: 2, methodId: 3 })).json.expired).toBe(true);
+    expect((await call(CLIENT, 'POST', `/orders/${r.id}/confirm`, { version: 2 })).json.expired).toBe(true);
     const exp = (await call(CLIENT, 'GET', `/orders/${r.id}`)).json.order;
     expect(exp).toMatchObject({ status: 'EXPIRED', actions: ['requote', 'cancel'] });
     expect((await call(CLIENT, 'POST', `/orders/${r.id}/requote`, { version: exp.version })).json.order.status).toBe('QUOTED');

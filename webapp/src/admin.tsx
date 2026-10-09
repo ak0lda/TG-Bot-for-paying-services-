@@ -41,6 +41,8 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
   const cards = me.cards ?? [];
   const [form, setForm] = useState({ cardId: cards[0]?.id ?? 0, actual: '', rate: '', giftCode: '' });
   const [rateHint, setRateHint] = useState<string | null>(null);
+  const methods = me.methods ?? [];
+  const [req, setReq] = useState<{ methodId: number; text: string }>({ methodId: methods[0]?.id ?? 0, text: '' });
 
   const card = cards.find((c) => c.id === form.cardId);
   useEffect(() => {
@@ -61,6 +63,16 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
   const apply = (order: Order) => { setData({ order }); setPanel(null); onChanged(); };
   const simple = (path: string, okText: string, body: Record<string, unknown> = {}) =>
     run(() => api.admin(o.id, path, { version: o.version, ...body }), okText).then((r) => r && apply(r.order));
+
+  const sendRequisites = async () => {
+    const res = await run(
+      () => api.admin(o.id, 'requisites', { version: o.version, methodId: req.methodId, ...(req.text.trim() ? { text: req.text.trim() } : {}) }),
+      'Реквизиты отправлены клиенту',
+    );
+    if (!res) return;
+    apply(res.order);
+    setReq((r) => ({ ...r, text: '' }));
+  };
 
   const complete = async () => {
     const res = await run(() =>
@@ -103,6 +115,31 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
         {o.rejectReason && <Row k="Причина отказа">{o.rejectReason}</Row>}
         <Row k="Возраст">{ageOf(o.createdAt)}</Row>
       </Card>
+
+      {has('send_requisites') && (
+        <Card>
+          <div className="title"><span>Реквизиты клиенту</span></div>
+          <div className="sub" style={{ marginBottom: 8 }}>
+            {o.payment?.method ? `📤 Отправлено: ${o.payment.method}. Можно отправить ещё раз или выбрать другой способ.` : '⏳ Клиент ждёт реквизиты. Текст уйдёт ему в чат и в базе не сохраняется.'}
+            {' '}К оплате: <b>{rub(o.payment?.dueMinor ?? o.totalMinor)}</b>
+          </div>
+          <Field label="Способ перевода">
+            <select value={req.methodId} onChange={(e) => setReq({ ...req, methodId: Number(e.target.value) })}>
+              {methods.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}
+            </select>
+          </Field>
+          <Field label={methods.find((m) => m.id === req.methodId)?.hasSavedText ? 'Реквизиты (пусто — отправить готовый текст способа)' : 'Реквизиты'}>
+            <textarea value={req.text} onChange={(e) => setReq({ ...req, text: e.target.value })} placeholder="Телефон, банк, получатель, сумма…" autoComplete="off" />
+          </Field>
+          <Button
+            busy={busy}
+            disabled={!req.methodId || (req.text.trim().length < 3 && !methods.find((m) => m.id === req.methodId)?.hasSavedText)}
+            onClick={() => void sendRequisites()}
+          >
+            📤 Отправить реквизиты
+          </Button>
+        </Card>
+      )}
 
       {o.status === 'IN_PROGRESS' && o.url && <Button kind="secondary" onClick={() => openExternal(o.url!)}>🔗 Открыть ссылку</Button>}
 

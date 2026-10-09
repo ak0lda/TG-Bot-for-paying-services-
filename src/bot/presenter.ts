@@ -64,10 +64,16 @@ export class Presenter {
     if (['QUOTED', 'AWAITING_PAYMENT'].includes(o.status) && o.quoteExpiresAt) {
       lines.push(`Расчёт действует до ${this.fmtTime(o.quoteExpiresAt)}`);
     }
-    if (o.status === 'AWAITING_PAYMENT' && o.payMethodId) {
-      const m = await this.deps.catalog.getMethod(o.payMethodId);
+    if (o.status === 'AWAITING_PAYMENT') {
       const due = o.payDueMinor ?? o.totalMinor;
-      if (m && due != null) lines.push('', ot.payInstructions(formatRub(due), m.title, m.instructions));
+      if (!o.payMethodId) {
+        lines.push('', ot.awaitingRequisitesLine);
+      } else {
+        const m = await this.deps.catalog.getMethod(o.payMethodId);
+        if (m && due != null) {
+          lines.push('', `💳 К оплате: <b>${formatRub(due)}</b>`, `Способ: <b>${escapeHtml(m.title)}</b>`, ot.requisitesInChat, 'После перевода нажмите «Я оплатил».');
+        }
+      }
     }
     if (o.status === 'REJECTED' && o.rejectReason) lines.push(`Причина: ${escapeHtml(o.rejectReason)}`);
     if (o.status === 'LINK_INVALID') lines.push('', LINK_REMINDER);
@@ -79,7 +85,9 @@ export class Presenter {
         kb.text('✅ Подтвердить и оплатить', cb('cf')).row().text('Отменить', cb('cx'));
         break;
       case 'AWAITING_PAYMENT':
-        kb.text('💸 Я оплатил', cb('pd')).row().text('Отменить', cb('cx'));
+        // «Я оплатил» появляется, когда админ прислал реквизиты.
+        if (o.payMethodId) kb.text('💸 Я оплатил', cb('pd')).row();
+        kb.text('Отменить', cb('cx'));
         break;
       case 'EXPIRED':
         kb.text('🔄 Пересчитать', cb('rq')).row().text('Отменить', cb('cx'));
@@ -134,6 +142,10 @@ export class Presenter {
     }
     lines.push(age);
     lines.push(`Статус: ${STATUS_LABEL[o.status]}`);
+    if (o.status === 'AWAITING_PAYMENT') {
+      const m = o.payMethodId ? await this.deps.catalog.getMethod(o.payMethodId) : null;
+      lines.push(m ? `📤 Реквизиты отправлены: ${escapeHtml(m.title)}` : '⏳ Реквизиты клиенту не отправлены — выбери способ');
+    }
     if (o.comment) lines.push(`Комментарий: ${escapeHtml(o.comment)}`);
     if (o.rejectReason) lines.push(`Причина отклонения: ${escapeHtml(o.rejectReason)}`);
     if (o.status === 'DONE' && o.diffMinor != null) {
@@ -143,6 +155,11 @@ export class Presenter {
     const kb = new InlineKeyboard();
     const cb = (a: Parameters<typeof orderCb>[2]) => orderCb(o.id, o.version, a);
     switch (o.status) {
+      case 'AWAITING_PAYMENT': {
+        // Способ перевода выбирает админ: кнопка на каждый активный способ (повторное нажатие — отправить реквизиты снова).
+        for (const m of await this.deps.catalog.listMethods(true)) kb.text(ot.requisitesBtn(m.title), `r:${o.id}:${o.version}:${m.id}`).row();
+        break;
+      }
       case 'NEW':
         kb.text('🧮 Рассчитать', cb('q'));
         break;

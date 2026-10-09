@@ -1,32 +1,48 @@
-import type { TopUp, User } from '@prisma/client';
+import type { PaymentMethod, TopUp, User } from '@prisma/client';
 import type { Db } from '../db/client.js';
 import { topUpEntries } from '../domain/ledger.js';
 import { balanceOf, lockClient } from './ledger-service.js';
 import type { Attached } from './order-service.js';
 
-export type TopUpWithClient = TopUp & { client: User };
+export type TopUpWithClient = TopUp & { client: User; method: PaymentMethod | null };
+
+export class TopUpNotPendingError extends Error {}
 
 export class TopUpService {
   constructor(private readonly db: Db) {}
 
   get(id: number): Promise<TopUpWithClient | null> {
-    return this.db.topUp.findUnique({ where: { id }, include: { client: true } });
+    return this.db.topUp.findUnique({ where: { id }, include: { client: true, method: true } });
+  }
+
+  receiptCount(topUpId: number): Promise<number> {
+    return this.db.attachment.count({ where: { topUpId } });
   }
 
   pendingCount(clientId: number): Promise<number> {
     return this.db.topUp.count({ where: { clientId, status: 'PENDING' } });
   }
 
-  async create(clientId: number, amountMinor: bigint, methodId: number, receipt?: Attached): Promise<TopUpWithClient> {
-    return this.db.$transaction(async (tx) => {
-      const topUp = await tx.topUp.create({ data: { clientId, amountMinor, methodId }, include: { client: true } });
-      if (receipt) {
-        await tx.attachment.create({
-          data: { topUpId: topUp.id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
-        });
-      }
-      return topUp;
+  /** Заявка на пополнение: способ и реквизиты пока не выбраны — их присылает админ. */
+  async create(clientId: number, amountMinor: bigint): Promise<TopUpWithClient> {
+    return this.db.topUp.create({ data: { clientId, amountMinor }, include: { client: true, method: true } });
+  }
+
+  /** Админ выбрал способ и отправил реквизиты (сам текст не сохраняется). Только для ещё не обработанных пополнений. */
+  async setMethod(id: number, methodId: number): Promise<TopUpWithClient> {
+    const res = await this.db.topUp.updateMany({ where: { id, status: 'PENDING' }, data: { methodId } });
+    if (res.count !== 1) throw new TopUpNotPendingError();
+    return (await this.get(id))!;
+  }
+
+  /** Клиент прислал чек (file_id) — прикрепляем к своему необработанному пополнению. */
+  async addReceipt(id: number, clientId: number, receipt: Attached): Promise<TopUpWithClient> {
+    const t = await this.db.topUp.findFirst({ where: { id, clientId, status: 'PENDING' } });
+    if (!t) throw new TopUpNotPendingError();
+    await this.db.attachment.create({
+      data: { topUpId: id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
     });
+    return (await this.get(id))!;
   }
 
   /**
@@ -40,7 +56,7 @@ export class TopUpService {
         data: { status: 'CONFIRMED', confirmedById: adminId },
       });
       if (claimed.count !== 1) return null;
-      const topUp = await tx.topUp.findUniqueOrThrow({ where: { id }, include: { client: true } });
+      const topUp = await tx.topUp.findUniqueOrThrow({ where: { id }, include: { client: true, method: true } });
       await lockClient(tx, topUp.clientId);
       const before = await balanceOf(tx, topUp.clientId);
       for (const e of topUpEntries(topUp.amountMinor, before)) {

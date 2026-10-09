@@ -234,8 +234,9 @@ model TopUp {
   clientId      Int
   client        User          @relation(fields: [clientId], references: [id], onDelete: Restrict)
   amountMinor   BigInt
-  methodId      Int
-  method        PaymentMethod @relation(fields: [methodId], references: [id])
+  /// Способ перевода выбирает админ, когда присылает реквизиты; до этого null.
+  methodId      Int?
+  method        PaymentMethod? @relation(fields: [methodId], references: [id])
   status        TopUpStatus   @default(PENDING)
   confirmedById Int?
   createdAt     DateTime      @default(now())

@@ -1,4 +1,4 @@
-import type { LedgerEntry, LedgerType, PaymentMethod, User } from '@prisma/client';
+import type { LedgerEntry, LedgerType, User } from '@prisma/client';
 import { formatMinor, formatRub } from '../domain/money.js';
 import { escapeHtml } from './ru.js';
 
@@ -44,23 +44,29 @@ export const b = {
     `Сколько рублей хочешь внести?${debt > 0n ? `\nУ тебя долг ${formatRub(debt)} — можно погасить его кнопкой ниже.` : ''}`,
   badAmount: 'Не удалось разобрать сумму. Пример: 5000 или 5000,50',
   amountLimit: 'Сумма должна быть от 1 до 10 000 000 ₽.',
-  noMethods: 'Способы пополнения ещё не настроены — напиши админу.',
-  chooseMethod: 'Как будешь переводить?',
-  transferInstructions: (amount: bigint, m: PaymentMethod) =>
-    `Переведи <b>${formatRub(amount)}</b>\nСпособ: <b>${escapeHtml(m.title)}</b>\n\n${escapeHtml(m.instructions)}`,
-  sendReceipt: 'После перевода пришли скриншот или файл чека (фото / PDF).',
-  topUpSent: (id: number) => `Заявка на пополнение #${id} отправлена. Как только админ подтвердит поступление, деньги появятся на балансе.`,
-  topUpSentNoReceipt: (id: number, instructions: string) =>
-    `Заявка на пополнение #${id} отправлена. ${instructions}\nАдмин подтвердит поступление вручную.`,
+  topUpRequested: (id: number, amount: bigint) =>
+    `Заявка на пополнение #${id} на ${formatRub(amount)} отправлена. Админ пришлёт реквизиты для перевода в этот чат — не переводи деньги заранее.`,
+  topUpRequisitesMsg: (id: number, amount: bigint, method: string, text: string, needsReceipt: boolean) =>
+    `💳 Пополнение #${id}: переведи <b>${formatRub(amount)}</b>\nСпособ: <b>${escapeHtml(method)}</b>\n\n${escapeHtml(text)}\n\n${needsReceipt ? 'После перевода нажми «Отправить чек».' : 'Админ подтвердит поступление вручную.'}`,
+  sendReceiptBtn: '🧾 Отправить чек',
+  receiptPrompt: 'Пришли скриншот или файл чека (фото / PDF).',
+  receiptSent: (id: number) => `Чек по пополнению #${id} отправлен админу. Как только он подтвердит поступление, деньги появятся на балансе.`,
+  receiptNotPending: 'Это пополнение уже обработано.',
   topUpConfirmed: (amount: bigint, balance: bigint) =>
     `✅ Пополнение на ${formatRub(amount)} подтверждено.\n${balanceText(balance)}`,
   topUpRejected: (id: number) => `❌ Пополнение #${id} отклонено — поступление не найдено. Если это ошибка, напиши админу.`,
 
   // ── Админ ──
-  adminTopUp: (t: { id: number; client: User; amount: bigint; method: string; receipt: boolean; debt: bigint }) =>
-    `<b>💰 Пополнение #${t.id}</b>\nКлиент: #${t.client.id} ${escapeHtml(t.client.displayName)}${t.client.username ? ` (@${escapeHtml(t.client.username)})` : ''}\nСумма: <b>${formatRub(t.amount)}</b>\nСпособ: ${escapeHtml(t.method)}${t.receipt ? '\nЧек: см. сообщение выше' : '\nЧек не требуется'}${t.debt > 0n ? `\nДолг клиента: ${formatRub(t.debt)} — будет погашен в первую очередь` : ''}`,
+  adminTopUp: (t: { id: number; client: User; amount: bigint; method: string | null; receipts: number; debt: bigint }) =>
+    `<b>💰 Пополнение #${t.id}</b>\nКлиент: #${t.client.id} ${escapeHtml(t.client.displayName)}${t.client.username ? ` (@${escapeHtml(t.client.username)})` : ''}\nСумма: <b>${formatRub(t.amount)}</b>\n${
+      t.method ? `Способ: ${escapeHtml(t.method)} (реквизиты отправлены)` : '⏳ Реквизиты не отправлены — выбери способ'
+    }${t.receipts > 0 ? `\nЧеков от клиента: ${t.receipts}` : ''}${t.debt > 0n ? `\nДолг клиента: ${formatRub(t.debt)} — будет погашен в первую очередь` : ''}`,
   confirmTopUp: '✅ Подтвердить',
-  rejectTopUp: '❌ Не найдено',
+  rejectTopUp: '❌ Не найдено / отклонить',
+  topUpRequisitesPrompt: (id: number, method: string, amount: bigint) =>
+    `Пришли реквизиты для клиента (пополнение #${id}).\nСпособ: <b>${escapeHtml(method)}</b>, сумма: <b>${formatRub(amount)}</b>.\nТекст уйдёт клиенту; бот его нигде не сохраняет.`,
+  topUpRequisitesSent: (id: number, method: string) => `📤 Реквизиты по пополнению #${id} отправлены клиенту (${escapeHtml(method)}).`,
+  adminTopUpReceipt: (id: number) => `🧾 Клиент прислал чек по пополнению #${id}.`,
   topUpDone: (id: number, balance: bigint) => `Пополнение #${id} подтверждено. ${balanceText(balance).replace(/<\/?b>/g, '')}`,
   topUpDeclined: (id: number) => `Пополнение #${id} отклонено.`,
   topUpAlready: 'Уже обработано.',

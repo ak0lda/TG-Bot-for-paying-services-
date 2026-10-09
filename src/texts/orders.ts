@@ -114,6 +114,23 @@ export const o = {
     `Превышен лимит оплаты позже: лимит ${limit}, с этой заявкой набралось бы ${exposure}. Пополни баланс или выбери другой способ.`,
   debtAfterDone: (debt: string) => `Долг: <b>${debt}</b>. Погасить можно в разделе «💰 Мой баланс».`,
 
+  // ── Реквизиты (присылает админ) ──
+  waitRequisites: (id: number, due: string) =>
+    `✅ Заявка #${id} подтверждена. К оплате: <b>${due}</b>.\nАдмин пришлёт реквизиты для перевода в этот чат — подожди сообщения и не переводи деньги заранее.`,
+  awaitingRequisitesLine: '⏳ Ждём реквизиты от админа — они придут сообщением в чат.',
+  requisitesInChat: 'Реквизиты — в сообщении бота выше.',
+  adminNeedRequisites: (id: number) => `📥 Клиент подтвердил заявку #${id} — выбери способ и отправь реквизиты.`,
+  requisitesBtn: (title: string) => `📤 ${title}`,
+  requisitesPrompt: (method: string, amount: string) =>
+    `Пришли реквизиты для клиента.\nСпособ: <b>${escapeHtml(method)}</b>, сумма: <b>${amount}</b>.\nТекст уйдёт клиенту; бот его нигде не сохраняет.`,
+  useSavedBtn: 'Отправить сохранённый текст',
+  requisitesBadText: 'Нужен текст реквизитов от 3 до 1000 символов.',
+  requisitesMsg: (due: string, method: string, text: string, needsReceipt: boolean) =>
+    `💳 К оплате: <b>${due}</b>\nСпособ: <b>${escapeHtml(method)}</b>\n\n${escapeHtml(text)}\n\nПосле перевода нажми «Я оплатил»${needsReceipt ? ' и приложи чек' : ''}.`,
+  requisitesSent: (id: number, method: string) => `📤 Реквизиты по заявке #${id} отправлены клиенту (${escapeHtml(method)}).`,
+  requisitesNotAllowed: 'Реквизиты можно отправить только пока заявка ждёт оплату.',
+  noRequisitesYet: 'Админ ещё не прислал реквизиты — дождись сообщения от бота, потом нажми «Я оплатил».',
+
   // ── Клиент ──
   quoteReady: (id: number) => `💬 Заявка #${id} рассчитана.`,
   expiredNotice: (id: number) => `⌛ Расчёт по заявке #${id} истёк. Нажми «Пересчитать», чтобы получить актуальную сумму.`,

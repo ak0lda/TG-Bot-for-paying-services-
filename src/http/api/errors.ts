@@ -3,7 +3,7 @@ import { ZodError } from 'zod';
 import type { Logger } from '../../logger.js';
 import { InvalidTransitionError } from '../../domain/order-fsm.js';
 import {
-  ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RenewalExistsError, StaleOrderError,
+  ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RenewalExistsError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError,
 } from '../../services/order-service.js';
 import { RateUnavailableError } from '../../services/rates.js';
 
@@ -32,6 +32,8 @@ export function toApiError(e: unknown): ApiError | null {
   if (e instanceof OrderNotFoundError) return new ApiError(404, 'not_found', 'Заявка не найдена');
   if (e instanceof RateUnavailableError) return new ApiError(422, 'rate_unavailable', `Нет курса для ${e.currency}`, { currency: e.currency });
   if (e instanceof OrderDataError) return new ApiError(422, 'bad_order', 'Заявка в неподходящем состоянии');
+  if (e instanceof RequisitesNotSentError) return new ApiError(409, 'requisites_not_sent', 'Админ ещё не прислал реквизиты');
+  if (e instanceof RequisitesNotAllowedError) return new ApiError(409, 'requisites_not_allowed', 'Реквизиты можно отправить только пока заявка ждёт оплату');
   if (e instanceof PayLaterDeniedError) return new ApiError(409, 'pay_later_denied', 'Оплата позже не включена');
   if (e instanceof PayLaterLimitError) {
     return new ApiError(409, 'pay_later_limit', 'Превышен лимит оплаты позже', {

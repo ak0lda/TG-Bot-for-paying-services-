@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Deps } from '../../bot/context.js';
 import { notifyOrderDone } from '../../bot/notify-done.js';
+import { deliverOrderRequisites } from '../../bot/requisites.js';
 import { isTrustedDomain } from '../../domain/link-validator.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { RATE_SCALE, formatRate, parseRate } from '../../domain/pricing.js';
@@ -64,6 +65,21 @@ export function adminRoutes(deps: Deps) {
       const order = await deps.orders.markLinkInvalid((await load(req)).id, version, req.actor.id);
       await deps.presenter.notifyClient(order, ot.linkInvalidNotice(order.id));
       return { order: await dto(order) };
+    });
+
+    /** Админ выбирает способ перевода и присылает реквизиты клиенту (текст не сохраняется). */
+    app.post('/orders/:id/requisites', async (req) => {
+      const body = versioned
+        .extend({ methodId: z.number().int().positive(), text: z.string().trim().min(3).max(1000).optional() })
+        .parse(req.body);
+      const order = await load(req);
+      const method = await deps.catalog.getMethod(body.methodId);
+      if (!method || !method.isActive) throw new ApiError(422, 'method_not_found', 'Способ не найден', { field: 'methodId' });
+      const text = body.text ?? (method.instructions || undefined);
+      if (!text) throw new ApiError(422, 'text_required', ot.requisitesBadText, { field: 'text' });
+      const updated = await deps.orders.setPayMethod(order.id, body.version, req.actor.id, method.id, method.title);
+      await deliverOrderRequisites(deps, updated, method, text);
+      return { order: await dto(updated) };
     });
 
     app.post('/orders/:id/reject', async (req) => {

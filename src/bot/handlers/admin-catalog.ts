@@ -63,9 +63,10 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
   });
 
   c.command('method_add', async (ctx) => {
-    const [title = '', instructions = '', receiptRaw = 'да'] = ctx.match.split('|').map((s) => s.trim());
-    if (!title || !instructions) return void (await ctx.reply(ct.methodUsage));
-    if (title.length < 2 || title.length > 40 || instructions.length < 2 || instructions.length > 1000) {
+    const [title = '', rawText = '', receiptRaw = 'да'] = ctx.match.split('|').map((s) => s.trim());
+    if (!title) return void (await ctx.reply(ct.methodUsage));
+    const instructions = rawText === '-' ? '' : rawText;
+    if (title.length < 2 || title.length > 40 || instructions.length > 1000 || (instructions && instructions.length < 2)) {
       return void (await ctx.reply(ct.methodBad));
     }
     if (detectSecret(instructions) === 'card_number') return void (await ctx.reply(ct.methodHasCard));
@@ -77,9 +78,10 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
   c.command('method_edit', async (ctx) => {
     const sep = ctx.match.indexOf('|');
     const id = sep > 0 ? parseId(ctx.match.slice(0, sep)) : null;
-    const text = sep > 0 ? ctx.match.slice(sep + 1).trim() : '';
-    if (id === null || !text) return void (await ctx.reply(ct.methodUsage));
-    if (text.length < 2 || text.length > 1000) return void (await ctx.reply(ct.methodBad));
+    const rawText = sep > 0 ? ctx.match.slice(sep + 1).trim() : '';
+    const text = rawText === '-' ? '' : rawText;
+    if (id === null || !rawText) return void (await ctx.reply(ct.methodUsage));
+    if (text.length > 1000 || (text && text.length < 2)) return void (await ctx.reply(ct.methodBad));
     if (detectSecret(text) === 'card_number') return void (await ctx.reply(ct.methodHasCard));
     if (!(await deps.catalog.getMethod(id))) return void (await ctx.reply(ct.methodNotFound));
     await ctx.reply(ct.methodUpdated(await deps.catalog.updateMethod(id, { instructions: text })), html);

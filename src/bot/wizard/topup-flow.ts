@@ -1,11 +1,11 @@
-import { InlineKeyboard } from 'grammy';
-import type { PaymentMethod } from '@prisma/client';
 import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
+import { notifyAdminTopUp } from '../requisites.js';
 import { debtOf } from '../../domain/ledger.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { balanceOf } from '../../services/ledger-service.js';
 import type { Attached } from '../../services/order-service.js';
+import { TopUpNotPendingError } from '../../services/topup-service.js';
 import { b } from '../../texts/balance.js';
 import { o as ot } from '../../texts/orders.js';
 
@@ -13,32 +13,23 @@ const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled:
 const MIN_MINOR = 100n; // 1 ₽
 const MAX_MINOR = 1_000_000_000n; // 10 000 000 ₽
 
+// ── Заявка на пополнение: клиент называет сумму, реквизиты присылает админ ──
 interface TopUpData {
   clientId: number;
   debt: bigint;
   amountMinor?: bigint;
-  methods: PaymentMethod[];
-  methodId: number | null;
-  receipt?: Attached;
 }
 
 export async function startTopUp(ctx: BotContext, deps: Deps, opts: { repayDebt?: boolean } = {}): Promise<void> {
   const clientId = ctx.appUser!.id;
-  const methods = await deps.catalog.listMethods(true);
-  if (methods.length === 0) return void (await ctx.reply(b.noMethods));
   const debt = debtOf(await balanceOf(deps.db, clientId));
-  const data: TopUpData = {
+  deps.wizards.cancel(ctx.from!.id);
+  await deps.wizards.start(ctx, topUpWizard(deps), {
     clientId,
     debt,
-    methods,
-    methodId: methods.length === 1 ? methods[0]!.id : null,
     ...(opts.repayDebt && debt > 0n ? { amountMinor: debt } : {}),
-  };
-  deps.wizards.cancel(ctx.from!.id);
-  await deps.wizards.start(ctx, topUpWizard(deps), data);
+  } satisfies TopUpData);
 }
-
-const methodOf = (d: TopUpData): PaymentMethod => d.methods.find((m) => m.id === d.methodId)!;
 
 function topUpWizard(deps: Deps): WizardDef<TopUpData> {
   return {
@@ -67,21 +58,35 @@ function topUpWizard(deps: Deps): WizardDef<TopUpData> {
           }
         },
       },
+    ],
+    finish: async (ctx, d) => {
+      const topUp = await deps.topups.create(d.clientId, d.amountMinor!);
+      deps.log.info({ topUpId: topUp.id }, 'top-up requested');
+      await ctx.reply(b.topUpRequested(topUp.id, topUp.amountMinor), html);
+      await notifyAdminTopUp(deps, topUp);
+    },
+  };
+}
+
+// ── Чек по пополнению: клиент присылает после того, как получил реквизиты ──
+interface ReceiptData {
+  topUpId: number;
+  clientId: number;
+  receipt?: Attached;
+}
+
+export async function startTopUpReceipt(ctx: BotContext, deps: Deps, topUpId: number): Promise<void> {
+  deps.wizards.cancel(ctx.from!.id);
+  await deps.wizards.start(ctx, receiptWizard(deps), { topUpId, clientId: ctx.appUser!.id } satisfies ReceiptData);
+}
+
+function receiptWizard(deps: Deps): WizardDef<ReceiptData> {
+  return {
+    name: 'topup-receipt',
+    steps: [
       {
-        key: 'method',
-        skip: (d) => d.methodId !== null,
-        prompt: (d) => ({ text: b.chooseMethod, buttons: d.methods.map((m) => [{ label: m.title, value: String(m.id) }]) }),
-        handle: async (input, d) => {
-          const m = d.methods.find((x) => String(x.id) === input.button);
-          if (!m) return ot.useButtons;
-          d.methodId = m.id;
-          return undefined;
-        },
-      },
-      {
-        key: 'receipt',
-        skip: (d) => !methodOf(d).requiresReceipt,
-        prompt: (d) => ({ text: `${b.transferInstructions(d.amountMinor!, methodOf(d))}\n\n${b.sendReceipt}` }),
+        key: 'file',
+        prompt: () => ({ text: b.receiptPrompt }),
         handle: async (input, d) => {
           if (!input.file) return ot.needFile;
           d.receipt = { fileId: input.file.id, fileType: input.file.type };
@@ -90,20 +95,15 @@ function topUpWizard(deps: Deps): WizardDef<TopUpData> {
       },
     ],
     finish: async (ctx, d) => {
-      const method = methodOf(d);
-      const topUp = await deps.topups.create(d.clientId, d.amountMinor!, method.id, d.receipt);
-      deps.log.info({ topUpId: topUp.id }, 'top-up requested');
-      if (d.receipt) {
-        await ctx.reply(b.topUpSent(topUp.id), html);
-      } else {
-        await ctx.reply(b.topUpSentNoReceipt(topUp.id, b.transferInstructions(d.amountMinor!, method)), html);
+      try {
+        const topUp = await deps.topups.addReceipt(d.topUpId, d.clientId, d.receipt!);
+        await ctx.reply(b.receiptSent(topUp.id), html);
+        await deps.notifier.attachmentToAdmin(d.receipt!, `Чек по пополнению #${topUp.id}`);
+        await notifyAdminTopUp(deps, topUp, b.adminTopUpReceipt(topUp.id));
+      } catch (e) {
+        if (e instanceof TopUpNotPendingError) return void (await ctx.reply(b.receiptNotPending));
+        throw e;
       }
-      if (d.receipt) await deps.notifier.attachmentToAdmin(d.receipt, `Чек по пополнению #${topUp.id}`);
-      const kb = new InlineKeyboard().text(b.confirmTopUp, `t:${topUp.id}:ok`).text(b.rejectTopUp, `t:${topUp.id}:no`);
-      await deps.notifier.toAdmin(
-        b.adminTopUp({ id: topUp.id, client: topUp.client, amount: d.amountMinor!, method: method.title, receipt: !!d.receipt, debt: d.debt }),
-        kb,
-      );
     },
   };
 }

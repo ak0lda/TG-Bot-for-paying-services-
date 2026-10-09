@@ -14,9 +14,10 @@ export async function bootstrapDefaults(db: Db): Promise<void> {
     }),
     db.paymentMethod.createMany({
       data: [
-        { title: 'СБП', instructions: 'Реквизиты не заданы — укажи их через /methods', requiresReceipt: true, sortOrder: 1 },
-        { title: 'Перевод на карту', instructions: 'Реквизиты не заданы — укажи их через /methods', requiresReceipt: true, sortOrder: 2 },
-        { title: 'Наличные', instructions: 'Договоримся о встрече', requiresReceipt: false, sortOrder: 3 },
+        // Реквизиты админ присылает вручную при каждой заявке (в базе не хранятся); instructions — необязательный готовый текст.
+        { title: 'СБП', instructions: '', requiresReceipt: true, sortOrder: 1 },
+        { title: 'Прямой перевод', instructions: '', requiresReceipt: true, sortOrder: 2 },
+        { title: 'Наличные', instructions: '', requiresReceipt: false, sortOrder: 3 },
       ],
     }),
     db.setting.create({ data: { key: FLAG, value: true } }),
