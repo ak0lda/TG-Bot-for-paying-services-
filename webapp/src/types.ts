@@ -37,7 +37,7 @@ export interface Order {
   createdAt: string;
   actions: Array<ClientAction | AdminAction>;
   /** Реквизиты присылает админ в чат (в БД не хранятся). awaitingRequisites — ещё не прислал. */
-  payment: { method: string | null; instructions: string; requiresReceipt: boolean; dueMinor: string | null; awaitingRequisites: boolean } | null;
+  payment: { method: string | null; requiresReceipt: boolean; dueMinor: string | null; awaitingRequisites: boolean } | null;
   client: { id: number; name: string; username: string | null } | null;
 }
 

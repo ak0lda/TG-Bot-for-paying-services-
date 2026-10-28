@@ -3,6 +3,7 @@ import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { linkInput } from './helpers.js';
 import { handleOrderError } from '../errors.js';
+import { autoSendOrderRequisites } from '../auto-requisites.js';
 import { formatRub } from '../../domain/money.js';
 import { availableOf } from '../../domain/ledger.js';
 import { balanceOf } from '../../services/ledger-service.js';
@@ -64,9 +65,15 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
           await deps.presenter.notifyAdmin(order, ot.adminInProgress(order.id, how));
           return;
         }
-        // AWAITING_PAYMENT: ждём реквизиты от админа.
-        await ctx.reply(ot.waitRequisites(order.id, formatRub(order.payDueMinor ?? order.totalMinor ?? 0n)), { ...html, reply_markup: view.keyboard });
-        await deps.presenter.notifyAdmin(order, ot.adminNeedRequisites(order.id));
+        // AWAITING_PAYMENT: сначала пробуем автоотправку реквизитов по сумме, иначе ждём админа.
+        const due = formatRub(order.payDueMinor ?? order.totalMinor ?? 0n);
+        const auto = await autoSendOrderRequisites(deps, order);
+        if (auto.sent) {
+          await deps.presenter.notifyAdmin(auto.order, ot.adminAutoRequisites(order.id, auto.method.title, due));
+          return;
+        }
+        await ctx.reply(ot.waitRequisites(order.id, due), { ...html, reply_markup: view.keyboard });
+        await deps.presenter.notifyAdmin(order, auto.hadCandidates ? ot.adminAutoMiss(order.id, due) : ot.adminNeedRequisites(order.id));
       } catch (e) {
         if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied));
         if (e instanceof PayLaterLimitError) {

@@ -31,7 +31,7 @@ export const t = {
     '/adjust &lt;id&gt; &lt;±сумма&gt; [комментарий] — корректировка баланса\n' +
     '/rate [ВАЛ [курс|clear]] — курсы\n' +
     '/cards · /card_add &lt;метка&gt; &lt;ВАЛ&gt; · /card_toggle &lt;id&gt;\n' +
-    '/methods · /method_add · /method_edit · /method_receipt · /method_toggle',
+    '/methods · /method_add · /method_edit · /method_limits · /method_auto · /method_receipt · /method_toggle',
   helpClient: 'Используй кнопки меню: «➕ Новая заявка» и «📋 Мои заявки». /cancel — отменить текущий диалог.',
 
   newClientNotice: (u: User) =>

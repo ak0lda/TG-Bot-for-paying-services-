@@ -1,6 +1,7 @@
 import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { detectSecret } from '../../domain/secret-detector.js';
 import { RateUnavailableError } from '../../services/rates.js';
 import { c as ct } from '../../texts/catalog.js';
@@ -18,7 +19,7 @@ const yesNo = (s: string): boolean | null => {
 
 const ADMIN_COMMANDS = [
   'orders', 'cards', 'card_add', 'card_toggle', 'methods', 'method_add', 'method_edit', 'method_receipt',
-  'method_toggle', 'rate',
+  'method_toggle', 'method_limits', 'method_auto', 'rate',
 ];
 
 export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
@@ -101,6 +102,38 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
     const m = id === null ? null : await deps.catalog.getMethod(id);
     if (!m) return void (await ctx.reply(ct.methodNotFound));
     await ctx.reply(ct.methodUpdated(await deps.catalog.updateMethod(m.id, { isActive: !m.isActive })), html);
+  });
+
+  c.command('method_limits', async (ctx) => {
+    const [idRaw = '', minRaw, maxRaw] = ctx.match.trim().split(/\s+/);
+    const id = parseId(idRaw);
+    if (id === null || minRaw === undefined) return void (await ctx.reply(ct.limitsUsage));
+    if (!(await deps.catalog.getMethod(id))) return void (await ctx.reply(ct.methodNotFound));
+    let min: bigint | null = null;
+    let max: bigint | null = null;
+    if (minRaw.toLowerCase() !== 'off') {
+      if (maxRaw === undefined) return void (await ctx.reply(ct.limitsUsage));
+      try {
+        min = minRaw === '-' ? null : parseDecimalToMinor(minRaw);
+        max = maxRaw === '-' ? null : parseDecimalToMinor(maxRaw);
+      } catch (e) {
+        if (e instanceof MoneyParseError) return void (await ctx.reply(ct.limitsBad));
+        throw e;
+      }
+      if (min !== null && max !== null && min > max) return void (await ctx.reply(ct.limitsBad));
+    }
+    await ctx.reply(ct.limitsSet(await deps.catalog.updateMethod(id, { minAmountMinor: min, maxAmountMinor: max })));
+  });
+
+  c.command('method_auto', async (ctx) => {
+    const [idRaw = '', flagRaw = ''] = ctx.match.trim().split(/\s+/);
+    const id = parseId(idRaw);
+    const flag = flagRaw === 'on' ? true : flagRaw === 'off' ? false : null;
+    if (id === null || flag === null) return void (await ctx.reply(ct.autoUsage));
+    const m = await deps.catalog.getMethod(id);
+    if (!m) return void (await ctx.reply(ct.methodNotFound));
+    if (flag && !m.instructions.trim()) return void (await ctx.reply(ct.autoNeedsText));
+    await ctx.reply(ct.autoSet(await deps.catalog.updateMethod(id, { autoSend: flag })));
   });
 
   // ── Курсы ──────────────────────────────────────────────────

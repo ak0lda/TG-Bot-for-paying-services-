@@ -32,8 +32,8 @@ describe.skipIf(!url)('admin-sent requisites (orders and top-ups)', () => {
     await say(ADMIN, '/method_add Только реквизиты | - | да');
     expect(lastTo(ADMIN)!.text).toMatch(/Способ добавлен/);
     await say(ADMIN, '/methods');
-    expect(lastTo(ADMIN)!.text).toMatch(/Готовый текст: Тверская, 1/);
-    expect(lastTo(ADMIN)!.text).toMatch(/Реквизиты присылаешь вручную/);
+    expect(lastTo(ADMIN)!.text).toMatch(/Текст реквизитов: Тверская, 1/);
+    expect(lastTo(ADMIN)!.text).toMatch(/Текста нет — реквизиты присылаешь вручную/);
 
     const id = await quotedOrder();
     // слишком короткий текст отклоняется, диалог остаётся

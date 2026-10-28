@@ -127,6 +127,10 @@ export const o = {
   requisitesBadText: 'Нужен текст реквизитов от 3 до 1000 символов.',
   requisitesMsg: (due: string, method: string, text: string, needsReceipt: boolean) =>
     `💳 К оплате: <b>${due}</b>\nСпособ: <b>${escapeHtml(method)}</b>\n\n${escapeHtml(text)}\n\nПосле перевода нажми «Я оплатил»${needsReceipt ? ' и приложи чек' : ''}.`,
+  adminAutoRequisites: (id: number, method: string, amount: string) =>
+    `🤖 Заявка #${id}: реквизиты (${escapeHtml(method)}, ${amount}) отправлены клиенту автоматически — сумма подошла под способ. Жди оплату; при необходимости отправь другие реквизиты кнопкой.`,
+  adminAutoMiss: (id: number, amount: string) =>
+    `⚠️ Заявка #${id}: ${amount} не подходит ни под один способ с автоотправкой — выбери способ и отправь реквизиты вручную.`,
   requisitesSent: (id: number, method: string) => `📤 Реквизиты по заявке #${id} отправлены клиенту (${escapeHtml(method)}).`,
   requisitesNotAllowed: 'Реквизиты можно отправить только пока заявка ждёт оплату.',
   noRequisitesYet: 'Админ ещё не прислал реквизиты — дождись сообщения от бота, потом нажми «Я оплатил».',

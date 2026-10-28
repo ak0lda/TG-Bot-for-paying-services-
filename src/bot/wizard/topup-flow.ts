@@ -1,6 +1,7 @@
 import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { notifyAdminTopUp } from '../requisites.js';
+import { autoSendTopUpRequisites } from '../auto-requisites.js';
 import { debtOf } from '../../domain/ledger.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { balanceOf } from '../../services/ledger-service.js';
@@ -62,8 +63,13 @@ function topUpWizard(deps: Deps): WizardDef<TopUpData> {
     finish: async (ctx, d) => {
       const topUp = await deps.topups.create(d.clientId, d.amountMinor!);
       deps.log.info({ topUpId: topUp.id }, 'top-up requested');
+      const auto = await autoSendTopUpRequisites(deps, topUp);
+      if (auto.sent) {
+        await notifyAdminTopUp(deps, auto.topUp, b.adminAutoTopUp(topUp.id, auto.method.title, topUp.amountMinor));
+        return;
+      }
       await ctx.reply(b.topUpRequested(topUp.id, topUp.amountMinor), html);
-      await notifyAdminTopUp(deps, topUp);
+      await notifyAdminTopUp(deps, topUp, auto.hadCandidates ? b.adminAutoTopUpMiss(topUp.id, topUp.amountMinor) : undefined);
     },
   };
 }

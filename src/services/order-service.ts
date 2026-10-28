@@ -361,7 +361,14 @@ export class OrderService {
    * Админ выбрал способ перевода и отправил реквизиты (сам текст нигде не сохраняется).
    * Статус не меняется; в журнал событий пишется запись. Можно отправить повторно или выбрать другой способ.
    */
-  async setPayMethod(orderId: number, version: number, adminId: number, methodId: number, title: string): Promise<OrderWithClient> {
+  async setPayMethod(
+    orderId: number,
+    version: number,
+    adminId: number | null,
+    methodId: number,
+    title: string,
+    auto = false,
+  ): Promise<OrderWithClient> {
     await this.db.$transaction(async (tx) => {
       const o = await tx.order.findUnique({ where: { id: orderId } });
       if (!o) throw new OrderNotFoundError();
@@ -369,7 +376,7 @@ export class OrderService {
       if (o.status !== 'AWAITING_PAYMENT') throw new RequisitesNotAllowedError();
       await tx.order.update({ where: { id: orderId }, data: { payMethodId: methodId } });
       await tx.orderEvent.create({
-        data: { orderId, actorId: adminId, fromStatus: o.status, toStatus: o.status, comment: `Реквизиты отправлены клиенту: ${title}` },
+        data: { orderId, actorId: adminId, fromStatus: o.status, toStatus: o.status, comment: `Реквизиты отправлены ${auto ? 'автоматически' : 'клиенту'}: ${title}` },
       });
     });
     return this.getOrThrow(orderId);

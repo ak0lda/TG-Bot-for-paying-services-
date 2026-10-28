@@ -127,6 +127,11 @@ model PaymentMethod {
   requiresReceipt Boolean @default(true)
   isActive        Boolean @default(true)
   sortOrder       Int     @default(0)
+  /// Автоотправка: если включена и есть готовый текст, сервер сам присылает реквизиты клиенту, когда сумма в границах.
+  autoSend        Boolean @default(false)
+  /// Границы суммы перевода (копейки, включительно); null — без ограничения.
+  minAmountMinor  BigInt?
+  maxAmountMinor  BigInt?
 
   orders Order[]
   topUps TopUp[]
@@ -230,17 +235,17 @@ model OrderEvent {
 }
 
 model TopUp {
-  id            Int           @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   clientId      Int
-  client        User          @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client        User           @relation(fields: [clientId], references: [id], onDelete: Restrict)
   amountMinor   BigInt
   /// Способ перевода выбирает админ, когда присылает реквизиты; до этого null.
   methodId      Int?
   method        PaymentMethod? @relation(fields: [methodId], references: [id])
-  status        TopUpStatus   @default(PENDING)
+  status        TopUpStatus    @default(PENDING)
   confirmedById Int?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   attachments Attachment[]
   ledger      LedgerEntry[]

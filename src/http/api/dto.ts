@@ -85,12 +85,12 @@ export function orderDto(o: Order, role: Actor, extra: OrderDtoExtras = {}) {
     rejectReason: o.rejectReason,
     createdAt: o.createdAt.toISOString(),
     actions: role === 'ADMIN' ? adminActions(o) : clientActions(o),
-    // Реквизиты присылает админ в чат и в БД не хранятся; здесь только состояние и необязательный готовый текст способа.
+    // Сами реквизиты клиент получает только сообщением в чате (вручную от админа или автоматически) — API их не отдаёт,
+    // иначе мог бы показаться готовый текст способа вместо реквизитов, которые админ прислал вручную.
     payment:
       o.status === 'AWAITING_PAYMENT'
         ? {
             method: extra.method?.title ?? null,
-            instructions: extra.method?.instructions ?? '',
             requiresReceipt: extra.method?.requiresReceipt ?? true,
             dueMinor: m(dueMinor),
             awaitingRequisites: o.payMethodId == null,

@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Deps } from '../../bot/context.js';
+import { autoSendOrderRequisites } from '../../bot/auto-requisites.js';
 import { availableModes } from '../../bot/wizard/pay-modes.js';
+import { formatRub } from '../../domain/money.js';
 import { debtOf, availableOf } from '../../domain/ledger.js';
 import { validateLink } from '../../domain/link-validator.js';
 import { balanceOf, ledgerHistory } from '../../services/ledger-service.js';
@@ -82,7 +84,14 @@ export function clientRoutes(deps: Deps) {
         if (res.order.status === 'IN_PROGRESS') {
           await deps.presenter.notifyAdmin(res.order, ot.adminInProgress(res.order.id, ot.payModeShort[res.order.payMode]));
         } else {
-          await deps.presenter.notifyAdmin(res.order, ot.adminNeedRequisites(res.order.id));
+          const due = formatRub(res.order.payDueMinor ?? res.order.totalMinor ?? 0n);
+          const auto = await autoSendOrderRequisites(deps, res.order);
+          if (auto.sent) {
+            res.order = auto.order;
+            await deps.presenter.notifyAdmin(auto.order, ot.adminAutoRequisites(auto.order.id, auto.method.title, due));
+          } else {
+            await deps.presenter.notifyAdmin(res.order, auto.hadCandidates ? ot.adminAutoMiss(res.order.id, due) : ot.adminNeedRequisites(res.order.id));
+          }
         }
       }
       return { expired: res.expired, order: await dtoFor(res.order) };

@@ -20,7 +20,10 @@ export class CatalogService {
       data: { title, instructions, requiresReceipt, sortOrder: (last._max.sortOrder ?? 0) + 1 },
     });
   }
-  updateMethod(id: number, data: { title?: string; instructions?: string; requiresReceipt?: boolean; isActive?: boolean }) {
+  updateMethod(
+    id: number,
+    data: Partial<Pick<PaymentMethod, 'title' | 'instructions' | 'requiresReceipt' | 'isActive' | 'autoSend' | 'minAmountMinor' | 'maxAmountMinor'>>,
+  ) {
     return this.db.paymentMethod.update({ where: { id }, data });
   }
 

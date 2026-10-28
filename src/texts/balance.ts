@@ -66,6 +66,10 @@ export const b = {
   topUpRequisitesPrompt: (id: number, method: string, amount: bigint) =>
     `Пришли реквизиты для клиента (пополнение #${id}).\nСпособ: <b>${escapeHtml(method)}</b>, сумма: <b>${formatRub(amount)}</b>.\nТекст уйдёт клиенту; бот его нигде не сохраняет.`,
   topUpRequisitesSent: (id: number, method: string) => `📤 Реквизиты по пополнению #${id} отправлены клиенту (${escapeHtml(method)}).`,
+  adminAutoTopUp: (id: number, method: string, amount: bigint) =>
+    `🤖 Пополнение #${id}: реквизиты (${escapeHtml(method)}, ${formatRub(amount)}) отправлены клиенту автоматически. Жди чек и подтверди поступление.`,
+  adminAutoTopUpMiss: (id: number, amount: bigint) =>
+    `⚠️ Пополнение #${id}: ${formatRub(amount)} не подходит ни под один способ с автоотправкой — выбери способ и отправь реквизиты вручную.`,
   adminTopUpReceipt: (id: number) => `🧾 Клиент прислал чек по пополнению #${id}.`,
   topUpDone: (id: number, balance: bigint) => `Пополнение #${id} подтверждено. ${balanceText(balance).replace(/<\/?b>/g, '')}`,
   topUpDeclined: (id: number) => `Пополнение #${id} отклонено.`,

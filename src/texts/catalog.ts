@@ -1,4 +1,5 @@
 import type { AdminCard, PaymentMethod } from '@prisma/client';
+import { formatRub } from '../domain/money.js';
 import { formatRate } from '../domain/pricing.js';
 import { escapeHtml } from './ru.js';
 
@@ -13,10 +14,28 @@ export const c = {
   cardToggled: (x: AdminCard) => `Карта #${x.id} ${x.isActive ? 'включена' : 'выключена'}.`,
 
   methodsEmpty: 'Способов оплаты нет. Добавь: /method_add СБП | - | да',
-  methodLine: (m: PaymentMethod) =>
-    `<b>#${m.id} ${escapeHtml(m.title)}</b> — ${m.isActive ? 'активен' : 'выключен'}, чек ${m.requiresReceipt ? 'нужен' : 'не нужен'}\n${m.instructions ? `Готовый текст: ${escapeHtml(m.instructions)}` : 'Реквизиты присылаешь вручную по каждой заявке'}`,
+  methodLine: (m: PaymentMethod) => {
+    const limits =
+      m.minAmountMinor == null && m.maxAmountMinor == null
+        ? 'без ограничений по сумме'
+        : `сумма ${m.minAmountMinor != null ? `от ${formatRub(m.minAmountMinor)}` : ''}${m.minAmountMinor != null && m.maxAmountMinor != null ? ' ' : ''}${m.maxAmountMinor != null ? `до ${formatRub(m.maxAmountMinor)}` : ''}`;
+    const auto = m.autoSend ? (m.instructions ? '🤖 автоотправка: вкл' : '🤖 автоотправка: вкл, но нет текста — не сработает') : 'автоотправка: выкл';
+    return `<b>#${m.id} ${escapeHtml(m.title)}</b> — ${m.isActive ? 'активен' : 'выключен'}, чек ${m.requiresReceipt ? 'нужен' : 'не нужен'}\n${limits}; ${auto}\n${
+      m.instructions ? `Текст реквизитов: ${escapeHtml(m.instructions)}` : 'Текста нет — реквизиты присылаешь вручную по каждой заявке'
+    }`;
+  },
   methodsHint:
-    '\n\nПо каждой заявке и пополнению ты сам выбираешь способ кнопкой и присылаешь реквизиты — в базе они не хранятся. «Готовый текст» необязателен (например, для наличных): его можно отправить одной кнопкой.\n\n/method_add Название | Готовый текст или - | да/нет (чек)\n/method_edit &lt;id&gt; | Новый готовый текст (или -)\n/method_receipt &lt;id&gt; да/нет\n/method_toggle &lt;id&gt;',
+    '\n\n<b>Автоотправка.</b> Задай способу текст реквизитов, границы суммы и включи автоотправку — когда клиент подтвердит заявку или попросит пополнение, сервер сам выберет подходящий по сумме способ и пришлёт реквизиты. Подходящих нет — карточка придёт тебе, как раньше.\n' +
+    'Текст реквизитов хранится в базе бота (не в git); номера банковских карт в нём запрещены.\n\n' +
+    '/method_add Название | Текст реквизитов или - | да/нет (чек)\n/method_edit &lt;id&gt; | Новый текст (или -)\n' +
+    '/method_limits &lt;id&gt; &lt;от ₽&gt; &lt;до ₽&gt; (- = без границы) | /method_limits &lt;id&gt; off\n/method_auto &lt;id&gt; on|off\n' +
+    '/method_receipt &lt;id&gt; да/нет · /method_toggle &lt;id&gt;',
+  limitsUsage: 'Использование: /method_limits <id> <от ₽> <до ₽> (- = без границы) или /method_limits <id> off\nПример: /method_limits 2 5800 640000',
+  limitsBad: 'Не удалось разобрать суммы, либо «от» больше «до».',
+  limitsSet: (m: PaymentMethod) => `Границы обновлены: ${m.title}.`,
+  autoUsage: 'Использование: /method_auto <id> on|off',
+  autoNeedsText: 'Сначала задай текст реквизитов: /method_edit <id> | текст',
+  autoSet: (m: PaymentMethod) => `Автоотправка для «${m.title}»: ${m.autoSend ? 'включена' : 'выключена'}.`,
   methodUsage: 'Использование: /method_add Название | Готовый текст или - | да',
   methodBad: 'Название 2–40 символов, готовый текст — до 1000.',
   methodHasCard:
