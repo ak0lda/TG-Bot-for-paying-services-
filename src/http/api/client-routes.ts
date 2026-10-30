@@ -9,6 +9,7 @@ import { validateLink } from '../../domain/link-validator.js';
 import { balanceOf, ledgerHistory } from '../../services/ledger-service.js';
 import { CLIENT, type OrderWithClient } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
+import { warningText } from '../../texts/rates.js';
 import { r } from '../../texts/reports.js';
 import { ApiError } from './errors.js';
 import { ledgerDto, orderDto } from './dto.js';
@@ -122,8 +123,10 @@ export function clientRoutes(deps: Deps) {
     app.post('/orders/:id/requote', async (req) => {
       const { version } = versioned.parse(req.body);
       const order = await ownOrder(req);
+      const warnings = order.currency ? (await deps.rates.assess(order.currency)).warnings : [];
       const updated = await deps.orders.requote(order.id, version, CLIENT(req.actor.id));
-      await deps.presenter.notifyAdmin(updated, ot.adminRequoted(updated.id));
+      const note = warnings.length ? `\n${warnings.map((w) => warningText(w, order.currency!)).join('\n')}` : '';
+      await deps.presenter.notifyAdmin(updated, ot.adminRequoted(updated.id) + note);
       return { order: await dtoFor(updated) };
     });
 

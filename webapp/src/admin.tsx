@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { ageOf, money, periodText, rub, signedRub } from './format';
 import { openExternal } from './tg';
 import type { AdminAction, Me, Order, Stats } from './types';
@@ -41,6 +41,8 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
   const cards = me.cards ?? [];
   const [form, setForm] = useState({ cardId: cards[0]?.id ?? 0, actual: '', rate: '', giftCode: '' });
   const [rateHint, setRateHint] = useState<string | null>(null);
+  // Предупреждения по курсу перед расчётом (сервер ответил 409 rate_warning): админ решает, считать ли.
+  const [rateWarn, setRateWarn] = useState<string[] | null>(null);
   const methods = me.methods ?? [];
   const [req, setReq] = useState<{ methodId: number; text: string }>({ methodId: methods[0]?.id ?? 0, text: '' });
 
@@ -72,6 +74,22 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
     if (!res) return;
     apply(res.order);
     setReq((r) => ({ ...r, text: '' }));
+  };
+
+  const quote = async (force: boolean) => {
+    const res = await run(
+      () => api.admin(o.id, 'quote', { version: o.version, ...(force ? { force: true } : {}) }),
+      'Расчёт готов',
+      (e) => {
+        if (e instanceof ApiError && e.code === 'rate_warning') {
+          setRateWarn(((e.extra.warnings ?? []) as Array<{ text: string }>).map((w) => w.text));
+        }
+      },
+    );
+    if (res) {
+      setRateWarn(null);
+      apply(res.order);
+    }
   };
 
   const complete = async () => {
@@ -173,7 +191,15 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
         </Card>
       )}
 
-      {has('quote') && <Button busy={busy} onClick={() => void simple('quote', 'Расчёт готов')}>🧮 Рассчитать</Button>}
+      {rateWarn && (
+        <div className="warnbox">
+          <b>Проверьте курс перед расчётом</b>
+          {rateWarn.map((t) => <div key={t} style={{ marginTop: 6 }}>{t}</div>)}
+          <Button busy={busy} onClick={() => void quote(true)}>Рассчитать всё равно</Button>
+          <Button kind="secondary" onClick={() => setRateWarn(null)}>Отмена</Button>
+        </div>
+      )}
+      {has('quote') && !rateWarn && <Button busy={busy} onClick={() => void quote(false)}>🧮 Рассчитать</Button>}
       {has('confirm_payment') && <Button busy={busy} onClick={() => void simple('confirm-payment', 'Оплата подтверждена')}>✅ Оплата получена</Button>}
       {has('payment_not_found') && <Button kind="secondary" busy={busy} onClick={() => void simple('payment-not-found', 'Клиенту отправлено')}>🚫 Оплата не найдена</Button>}
       {has('complete') && (

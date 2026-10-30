@@ -12,6 +12,7 @@ import type { RatesService } from '../services/rates.js';
 import type { CatalogService } from '../services/catalog-service.js';
 import type { ReportService } from '../services/report-service.js';
 import type { TopUpService } from '../services/topup-service.js';
+import type { AlertService } from '../services/alerts.js';
 import type { Notifier } from '../services/notifier.js';
 import type { Presenter } from './presenter.js';
 import type { WizardManager } from './wizard/engine.js';
@@ -30,6 +31,7 @@ export interface Deps {
   rates: RatesService;
   catalog: CatalogService;
   notifier: Notifier;
+  alerts: AlertService;
   presenter: Presenter;
   wizards: WizardManager;
 }

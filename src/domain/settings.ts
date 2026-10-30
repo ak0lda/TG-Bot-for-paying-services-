@@ -13,6 +13,8 @@ export const SETTING_DEFS = {
   debtReminderDays: { kind: 'int', default: 3, min: 1, max: 60, label: 'Напоминание о долге раз в, дн.' },
   subscriptionRemindDays: { kind: 'int', default: 3, min: 1, max: 30, label: 'Напоминание о подписке за, дн.' },
   inviteTtlHours: { kind: 'int', default: 72, min: 1, max: 720, label: 'Срок жизни инвайта, ч' },
+  rateJumpBp: { kind: 'percent', default: 500, min: 50, max: 100_000, label: 'Предупреждать о скачке курса от, %' },
+  rateStaleHours: { kind: 'int', default: 6, min: 1, max: 168, label: 'Курс ЦБ считается устаревшим через, ч' },
   reminderHour: { kind: 'int', default: 10, min: 0, max: 23, label: 'Час рассылки напоминаний (по TIMEZONE)' },
   defaultPayLaterLimitMinor: { kind: 'rub', default: 0, min: 0, max: 10_000_000_00, label: 'Лимит «оплаты позже» по умолчанию, ₽' },
 } as const satisfies Record<string, Def>;

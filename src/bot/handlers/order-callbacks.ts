@@ -1,6 +1,8 @@
 import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
-import { parseOrderCb, type OrderAction } from '../callbacks.js';
+import { InlineKeyboard } from 'grammy';
+import { orderCb, parseOrderCb, type OrderAction } from '../callbacks.js';
+import { rw, warningText } from '../../texts/rates.js';
 import { handleOrderError } from '../errors.js';
 import type { View } from '../presenter.js';
 import { startConfirm, startNewLink, startPaid } from '../wizard/client-flows.js';
@@ -8,7 +10,7 @@ import { startDone, startReject } from '../wizard/admin-flows.js';
 import { ADMIN, CLIENT } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
 
-const ADMIN_ACTIONS: OrderAction[] = ['q', 'pc', 'pn', 'lk', 'dn', 'rj'];
+const ADMIN_ACTIONS: OrderAction[] = ['q', 'qf', 'pc', 'pn', 'lk', 'dn', 'rj'];
 const CLIENT_ACTIONS: OrderAction[] = ['cf', 'pd', 'cx', 'nl'];
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
@@ -53,12 +55,26 @@ export function orderCallbacks(deps: Deps): Composer<BotContext> {
     try {
       switch (action) {
         case 'q':
+        case 'qf':
         case 'rq': {
+          // До расчёта проверяем курс: устарел / резко скачнул / ручной курс давно не обновлялся. Админ решает, считать ли.
+          const assessment = order.currency ? await deps.rates.assess(order.currency) : null;
+          const warnings = assessment?.warnings ?? [];
+          if (isAdmin && action !== 'qf' && warnings.length > 0) {
+            const kb = new InlineKeyboard().text(rw.confirmBtn, orderCb(id, version, 'qf')).row().text(rw.cancelBtn, orderCb(id, version, 'v'));
+            await ctx.reply([rw.title(order.currency!, id), ...warnings.map((w) => warningText(w, order.currency!))].join('\n\n'), { reply_markup: kb });
+            break;
+          }
+          if (isAdmin && action === 'qf' && order.currency) await deps.rates.acknowledge(order.currency);
           const actor = isAdmin ? ADMIN(user.id) : CLIENT(user.id);
           const quoted = await deps.orders.requote(id, version, actor);
           await editView(ctx, await viewOf(quoted));
           if (isAdmin) await deps.presenter.notifyClient(quoted, ot.quoteReady(id));
-          else await deps.presenter.notifyAdmin(quoted, ot.adminRequoted(id));
+          else {
+            // Клиент пересчитывает сам — расчёт идёт в любом случае, но админ должен знать о предупреждениях по курсу.
+            const note = warnings.length ? `\n${warnings.map((w) => warningText(w, order.currency!)).join('\n')}` : '';
+            await deps.presenter.notifyAdmin(quoted, ot.adminRequoted(id) + note);
+          }
           break;
         }
         case 'pc': {

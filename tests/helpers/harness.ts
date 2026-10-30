@@ -23,7 +23,14 @@ export interface Sent {
 /** Бот целиком (grammY + сервисы + реальная БД) с подставным Telegram API, который записывает вызовы. */
 export const BOT_TOKEN = '123456:ABCDEFGHIJKLMNOPQRSTUV';
 
-export function createHarness(url: string, extraEnv: Record<string, string> = {}) {
+/** Фиксированный ответ «ЦБ» для тестов — без обращения к сети. */
+export const CBR_XML = `<ValCurs>
+<Valute ID="R01235"><NumCode>840</NumCode><CharCode>USD</CharCode><Nominal>1</Nominal><Name>Доллар США</Name><Value>92,0000</Value></Valute>
+<Valute ID="R01239"><NumCode>978</NumCode><CharCode>EUR</CharCode><Nominal>1</Nominal><Name>Евро</Name><Value>100,0000</Value></Valute>
+<Valute ID="R01035"><NumCode>826</NumCode><CharCode>GBP</CharCode><Nominal>1</Nominal><Name>Фунт</Name><Value>115,0000</Value></Valute>
+</ValCurs>`;
+
+export function createHarness(url: string, extraEnv: Record<string, string> = {}, fetchRatesXml: () => Promise<string> = async () => CBR_XML) {
   const encKey = randomBytes(32);
   const sent: Sent[] = [];
   let updateId = 1;
@@ -45,7 +52,7 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
   const db: Db = createDb(url);
   const api = new Api(config.BOT_TOKEN);
   api.config.use(transformer as never);
-  const deps: Deps = buildDeps(config, db, createLogger(config), api);
+  const deps: Deps = buildDeps(config, db, createLogger(config), api, { fetchRatesXml });
   const bot: Bot<BotContext> = createBot(deps, { rateLimit: { capacity: 10_000, refillPerSec: 10_000 } });
   bot.api.config.use(transformer as never);
   bot.botInfo = {

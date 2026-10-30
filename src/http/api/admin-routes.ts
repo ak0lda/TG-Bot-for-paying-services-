@@ -9,6 +9,7 @@ import { RATE_SCALE, formatRate, parseRate } from '../../domain/pricing.js';
 import { parseRange } from '../../domain/range.js';
 import type { OrderWithClient } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
+import { warningText } from '../../texts/rates.js';
 import { ApiError } from './errors.js';
 import { orderDto } from './dto.js';
 
@@ -40,8 +41,20 @@ export function adminRoutes(deps: Deps) {
     app.get('/orders/:id', async (req) => ({ order: await dto(await load(req)) }));
 
     app.post('/orders/:id/quote', async (req) => {
-      const { version } = versioned.parse(req.body);
-      const order = await deps.orders.quote((await load(req)).id, version, { role: 'ADMIN', userId: req.actor.id });
+      const body = versioned.extend({ force: z.boolean().optional() }).parse(req.body);
+      const current = await load(req);
+      // До расчёта проверяем курс. Есть предупреждения — отвечаем 409 rate_warning; с force: true админ подтверждает осознанно.
+      if (current.currency) {
+        const { warnings } = await deps.rates.assess(current.currency);
+        if (warnings.length > 0 && !body.force) {
+          throw new ApiError(409, 'rate_warning', 'Проверьте курс перед расчётом', {
+            currency: current.currency,
+            warnings: warnings.map((w) => ({ kind: w.kind, text: warningText(w, current.currency!) })),
+          });
+        }
+        if (warnings.length > 0) await deps.rates.acknowledge(current.currency);
+      }
+      const order = await deps.orders.quote(current.id, body.version, { role: 'ADMIN', userId: req.actor.id });
       await deps.presenter.notifyClient(order, ot.quoteReady(order.id));
       return { order: await dto(order) };
     });
