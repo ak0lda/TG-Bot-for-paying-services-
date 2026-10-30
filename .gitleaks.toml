@@ -8,4 +8,7 @@ regexes = [
   '''123456:ABCDEFGHIJKLMNOPQRSTUV''',
   '''abcdefghijklmnop1234''',
   '''\+995 555 00 00 00''',
+  # заведомо вымышленные «токены» в тесте маскирования логов
+  '''123456789:A{20,}''',
+  '''123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi''',
 ]
