@@ -1,5 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -24,11 +33,18 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
 
   const env = (over: Record<string, string> = {}): NodeJS.ProcessEnv => ({
     ...process.env,
-    POSTGRES_HOST: u.hostname, POSTGRES_PORT: u.port || '5432', POSTGRES_USER: u.username, POSTGRES_DB: dbName,
-    BACKUP_AGE_RECIPIENT: recipient, BACKUP_KEEP_DAYS: '14', ...over,
+    POSTGRES_HOST: u.hostname,
+    POSTGRES_PORT: u.port || '5432',
+    POSTGRES_USER: u.username,
+    POSTGRES_DB: dbName,
+    BACKUP_AGE_RECIPIENT: recipient,
+    BACKUP_KEEP_DAYS: '14',
+    ...over,
   });
-  const run = (cmd: string, args: string[], e: NodeJS.ProcessEnv) => spawnSync('bash', [cmd, ...args], { env: e, encoding: 'utf8' });
-  const backup = (dir: string, over: Record<string, string> = {}) => run(join(root, 'backup/backup.sh'), [], env({ BACKUP_DIR: dir, ...over }));
+  const run = (cmd: string, args: string[], e: NodeJS.ProcessEnv) =>
+    spawnSync('bash', [cmd, ...args], { env: e, encoding: 'utf8' });
+  const backup = (dir: string, over: Record<string, string> = {}) =>
+    run(join(root, 'backup/backup.sh'), [], env({ BACKUP_DIR: dir, ...over }));
   const newDir = () => mkdtempSync(join(work, 'out-'));
   const files = (dir: string) => readdirSync(join(dir, 'daily')).filter((f) => f.endsWith('.age'));
 
@@ -54,7 +70,10 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
     expect(raw.includes(Buffer.from('PaymentMethod'))).toBe(false);
     expect(readdirSync(join(dir, 'daily')).some((f) => f.startsWith('.tmp-'))).toBe(false); // временных файлов не осталось
 
-    const dumped = spawnSync('bash', ['-c', `age -d -i "${keyFile}" "${join(dir, 'daily', file!)}" | gunzip`], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    const dumped = spawnSync('bash', ['-c', `age -d -i "${keyFile}" "${join(dir, 'daily', file!)}" | gunzip`], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
     expect(dumped.stdout).toContain('CREATE TABLE public."User"');
 
     // восстановление в чистую БД + проверка
@@ -62,16 +81,31 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
     spawnSync('psql', [`${base}/postgres`, '-qc', `DROP DATABASE IF EXISTS "${target}"`]);
     expect(spawnSync('psql', [`${base}/postgres`, '-qc', `CREATE DATABASE "${target}"`]).status).toBe(0);
     try {
-      const restore = run(join(root, 'scripts/restore-backup.sh'), [join(dir, 'daily', file!), keyFile, `${base}/${target}`], process.env);
+      const restore = run(
+        join(root, 'scripts/restore-backup.sh'),
+        [join(dir, 'daily', file!), keyFile, `${base}/${target}`],
+        process.env,
+      );
       expect(restore.status, restore.stderr).toBe(0);
-      const count = (db: string) => spawnSync('psql', ['-At', `${base}/${db}`, '-c', 'SELECT count(*) FROM "PaymentMethod"'], { encoding: 'utf8' }).stdout.trim();
+      const count = (db: string) =>
+        spawnSync('psql', ['-At', `${base}/${db}`, '-c', 'SELECT count(*) FROM "PaymentMethod"'], {
+          encoding: 'utf8',
+        }).stdout.trim();
       expect(count(target)).toBe(count(dbName));
       // во второй раз — отказ: база не пуста
-      const again = run(join(root, 'scripts/restore-backup.sh'), [join(dir, 'daily', file!), keyFile, `${base}/${target}`], process.env);
+      const again = run(
+        join(root, 'scripts/restore-backup.sh'),
+        [join(dir, 'daily', file!), keyFile, `${base}/${target}`],
+        process.env,
+      );
       expect(again.status).toBe(3);
       expect(again.stderr).toMatch(/только в пустую/);
       // verify-скрипт проходит
-      const verify = run(join(root, 'scripts/verify-encrypted-backup.sh'), [join(dir, 'daily', file!), keyFile, base], process.env);
+      const verify = run(
+        join(root, 'scripts/verify-encrypted-backup.sh'),
+        [join(dir, 'daily', file!), keyFile, base],
+        process.env,
+      );
       expect(verify.status, verify.stderr).toBe(0);
       expect(verify.stdout).toMatch(/бэкап пригоден/);
     } finally {
@@ -138,7 +172,10 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
     const remoteDir = mkdtempSync(join(work, 'remote-'));
     const log = join(shimDir, 'calls.log');
     const shim = join(shimDir, 'rclone');
-    writeFileSync(shim, `#!/bin/bash\necho "$@" >> "${log}"\nif [ "$1" = copyto ]; then [ -n "$FAIL_UPLOAD" ] && exit 1; cp "$2" "${remoteDir}/$(basename "$3")"; fi\nexit 0\n`);
+    writeFileSync(
+      shim,
+      `#!/bin/bash\necho "$@" >> "${log}"\nif [ "$1" = copyto ]; then [ -n "$FAIL_UPLOAD" ] && exit 1; cp "$2" "${remoteDir}/$(basename "$3")"; fi\nexit 0\n`,
+    );
     chmodSync(shim, 0o755);
     const withShim = { PATH: `${shimDir}:${process.env.PATH}`, BACKUP_RCLONE_REMOTE: 'offsite:bucket/bot' };
 
@@ -146,7 +183,9 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
     expect(backup(ok, withShim).status).toBe(0);
     const uploaded = readdirSync(remoteDir);
     expect(uploaded).toEqual(files(ok));
-    expect(readFileSync(join(remoteDir, uploaded[0]!)).equals(readFileSync(join(ok, 'daily', files(ok)[0]!)))).toBe(true);
+    expect(readFileSync(join(remoteDir, uploaded[0]!)).equals(readFileSync(join(ok, 'daily', files(ok)[0]!)))).toBe(
+      true,
+    );
     expect(readFileSync(log, 'utf8')).toMatch(/delete --min-age 14d/); // ротация на удалённой стороне
 
     const bad = newDir();

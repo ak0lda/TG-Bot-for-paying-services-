@@ -2,12 +2,10 @@ import type { User } from '@prisma/client';
 import { formatRub } from '../domain/money.js';
 import { SETTING_DEFS, SETTING_KEYS, formatSettingValue, type Settings } from '../domain/settings.js';
 
-export const escapeHtml = (s: string): string =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export const t = {
-  accessDenied:
-    'Это закрытый бот. Доступ только по приглашению — попроси у владельца ссылку-приглашение.',
+  accessDenied: 'Это закрытый бот. Доступ только по приглашению — попроси у владельца ссылку-приглашение.',
   inviteInvalid: 'Код приглашения недействителен, уже использован или истёк. Попроси новый.',
   blocked: 'Доступ к боту закрыт. Если это ошибка — свяжись с владельцем.',
   rateLimited: 'Слишком часто. Подожди пару секунд.',

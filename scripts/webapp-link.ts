@@ -19,4 +19,6 @@ if (!Number.isSafeInteger(id) || id <= 0) {
 const cfg = loadConfig();
 const base = process.argv[3] ?? cfg.WEBAPP_URL ?? 'http://localhost:3000/app/';
 const initData = buildSignedInitData({ id, first_name: 'Debug' }, cfg.BOT_TOKEN);
-console.log(`${base}#tgWebAppData=${encodeURIComponent(initData)}&tgWebAppVersion=8.0&tgWebAppPlatform=web&tgWebAppThemeParams=%7B%7D`);
+console.log(
+  `${base}#tgWebAppData=${encodeURIComponent(initData)}&tgWebAppVersion=8.0&tgWebAppPlatform=web&tgWebAppThemeParams=%7B%7D`,
+);

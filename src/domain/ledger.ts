@@ -62,6 +62,7 @@ export function topUpEntries(amountMinor: bigint, balanceBeforeMinor: bigint): L
   const repay = amountMinor < debt ? amountMinor : debt;
   const entries: LedgerInput[] = [];
   if (repay > 0n) entries.push({ type: 'DEBT_REPAY', amountMinor: repay, comment: 'Погашение долга' });
-  if (amountMinor - repay > 0n) entries.push({ type: 'TOPUP', amountMinor: amountMinor - repay, comment: 'Пополнение баланса' });
+  if (amountMinor - repay > 0n)
+    entries.push({ type: 'TOPUP', amountMinor: amountMinor - repay, comment: 'Пополнение баланса' });
   return entries;
 }

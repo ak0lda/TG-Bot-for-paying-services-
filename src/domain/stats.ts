@@ -49,7 +49,9 @@ function group(orders: DoneOrder[], keyOf: (o: DoneOrder) => [string, string]): 
     row.turnoverMinor += o.totalMinor;
     map.set(key, row);
   }
-  return [...map.values()].sort((a, b) => (a.turnoverMinor === b.turnoverMinor ? a.label.localeCompare(b.label) : a.turnoverMinor > b.turnoverMinor ? -1 : 1));
+  return [...map.values()].sort((a, b) =>
+    a.turnoverMinor === b.turnoverMinor ? a.label.localeCompare(b.label) : a.turnoverMinor > b.turnoverMinor ? -1 : 1,
+  );
 }
 
 export function buildStats(orders: DoneOrder[]): Stats {
@@ -59,7 +61,13 @@ export function buildStats(orders: DoneOrder[]): Stats {
   const cards = new Map<string, CardRow>();
   for (const o of orders) {
     const key = `${o.cardLabel}|${o.cardCurrency}`;
-    const row = cards.get(key) ?? { label: o.cardLabel, currency: o.cardCurrency, count: 0, chargeMinor: 0n, rubMinor: 0n };
+    const row = cards.get(key) ?? {
+      label: o.cardLabel,
+      currency: o.cardCurrency,
+      count: 0,
+      chargeMinor: 0n,
+      rubMinor: 0n,
+    };
     row.count += 1;
     row.chargeMinor += o.chargeInCardCurrencyMinor;
     row.rubMinor += o.costMinor;

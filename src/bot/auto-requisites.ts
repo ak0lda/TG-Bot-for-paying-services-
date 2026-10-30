@@ -6,12 +6,10 @@ import { RequisitesNotAllowedError, StaleOrderError, type OrderWithClient } from
 import { TopUpNotPendingError, type TopUpWithClient } from '../services/topup-service.js';
 
 export type AutoOrderResult =
-  | { sent: true; order: OrderWithClient; method: PaymentMethod }
-  | { sent: false; hadCandidates: boolean };
+  { sent: true; order: OrderWithClient; method: PaymentMethod } | { sent: false; hadCandidates: boolean };
 
 export type AutoTopUpResult =
-  | { sent: true; topUp: TopUpWithClient; method: PaymentMethod }
-  | { sent: false; hadCandidates: boolean };
+  { sent: true; topUp: TopUpWithClient; method: PaymentMethod } | { sent: false; hadCandidates: boolean };
 
 /**
  * Автоотправка реквизитов по заявке (она только что перешла в AWAITING_PAYMENT): сервер сам выбирает способ по сумме к переводу
@@ -22,13 +20,21 @@ export async function autoSendOrderRequisites(deps: Deps, order: OrderWithClient
   const pick = pickAutoMethod(await deps.catalog.listMethods(true), amount);
   if (!pick.method || amount <= 0n) return { sent: false, hadCandidates: pick.hadCandidates };
   try {
-    const updated = await deps.orders.setPayMethod(order.id, order.version, null, pick.method.id, pick.method.title, true);
+    const updated = await deps.orders.setPayMethod(
+      order.id,
+      order.version,
+      null,
+      pick.method.id,
+      pick.method.title,
+      true,
+    );
     await deliverOrderRequisites(deps, updated, pick.method, pick.method.instructions);
     deps.log.info({ orderId: order.id, methodId: pick.method.id }, 'requisites sent automatically');
     return { sent: true, order: updated, method: pick.method };
   } catch (e) {
     // Заявку успели изменить (отмена, повторное нажатие) — просто не отправляем.
-    if (e instanceof StaleOrderError || e instanceof RequisitesNotAllowedError) return { sent: false, hadCandidates: pick.hadCandidates };
+    if (e instanceof StaleOrderError || e instanceof RequisitesNotAllowedError)
+      return { sent: false, hadCandidates: pick.hadCandidates };
     throw e;
   }
 }

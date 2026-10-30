@@ -29,7 +29,10 @@ describe('validateInitData', () => {
     const noHash = new URLSearchParams(raw);
     noHash.delete('hash');
     expect(validateInitData(noHash.toString(), TOKEN, now)).toEqual({ ok: false, reason: 'no_hash' });
-    expect(validateInitData(raw.replace(/hash=[0-9a-f]+/, 'hash=zz'), TOKEN, now)).toEqual({ ok: false, reason: 'no_hash' });
+    expect(validateInitData(raw.replace(/hash=[0-9a-f]+/, 'hash=zz'), TOKEN, now)).toEqual({
+      ok: false,
+      reason: 'no_hash',
+    });
     expect(validateInitData('', TOKEN, now)).toEqual({ ok: false, reason: 'missing' });
   });
 
@@ -51,8 +54,14 @@ describe('validateInitData', () => {
   it('rejects malformed user payloads', () => {
     const fields = (u: string) => signInitData({ auth_date: String(now.getTime() / 1000), user: u }, TOKEN);
     expect(validateInitData(fields('not json'), TOKEN, now)).toEqual({ ok: false, reason: 'no_user' });
-    expect(validateInitData(fields('{"id":-1,"first_name":"x"}'), TOKEN, now)).toEqual({ ok: false, reason: 'no_user' });
+    expect(validateInitData(fields('{"id":-1,"first_name":"x"}'), TOKEN, now)).toEqual({
+      ok: false,
+      reason: 'no_user',
+    });
     expect(validateInitData(fields('{"id":5}'), TOKEN, now)).toEqual({ ok: false, reason: 'no_user' });
-    expect(validateInitData(signInitData({ auth_date: String(now.getTime() / 1000) }, TOKEN), TOKEN, now)).toEqual({ ok: false, reason: 'no_user' });
+    expect(validateInitData(signInitData({ auth_date: String(now.getTime() / 1000) }, TOKEN), TOKEN, now)).toEqual({
+      ok: false,
+      reason: 'no_user',
+    });
   });
 });

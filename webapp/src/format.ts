@@ -10,14 +10,17 @@ export function formatMinor(minor: string | null | undefined): string {
 }
 
 export const rub = (minor: string | null | undefined): string => `${formatMinor(minor)} ₽`;
-export const money = (minor: string | null | undefined, cur: string | null): string => `${formatMinor(minor)} ${cur ?? ''}`;
+export const money = (minor: string | null | undefined, cur: string | null): string =>
+  `${formatMinor(minor)} ${cur ?? ''}`;
 
 export const signedRub = (minor: string): string => (BigInt(minor) > 0n ? `+${rub(minor)}` : rub(minor));
 
 export function formatDate(iso: string | null | undefined, withTime = true): string {
   if (!iso) return '—';
   return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit', month: '2-digit', ...(withTime ? { hour: '2-digit', minute: '2-digit' } : { year: 'numeric' }),
+    day: '2-digit',
+    month: '2-digit',
+    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : { year: 'numeric' }),
   }).format(new Date(iso));
 }
 

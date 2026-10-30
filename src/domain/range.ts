@@ -13,17 +13,32 @@ interface Ymd {
 }
 
 function localYmd(date: Date, tz: string): Ymd {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
   const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
   return { y: get('year'), m: get('month'), d: get('day') };
 }
 
 function tzOffsetMs(date: Date, tz: string): number {
   const p = new Intl.DateTimeFormat('en-GB', {
-    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
   }).formatToParts(date);
   const g = (t: string) => Number(p.find((x) => x.type === t)!.value);
-  return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'), g('second')) - Math.floor(date.getTime() / 1000) * 1000;
+  return (
+    Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute'), g('second')) -
+    Math.floor(date.getTime() / 1000) * 1000
+  );
 }
 
 /** Момент полуночи локальной даты в часовом поясе tz (UTC-инстант). Дата нормализуется (месяц 13 -> январь следующего года). */

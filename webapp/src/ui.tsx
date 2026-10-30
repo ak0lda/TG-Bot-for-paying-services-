@@ -3,18 +3,31 @@ import { ApiError } from './api';
 import { haptic } from './tg';
 
 // ── Хуки ──────────────────────────────────────────────────────
-export function useLoad<T>(fn: () => Promise<T>, deps: unknown[]) {
-  const [state, setState] = useState<{ data: T | null; error: string | null; loading: boolean }>({ data: null, error: null, loading: true });
+export function useLoad<T>(fn: () => Promise<T>, deps: readonly unknown[]) {
+  const [state, setState] = useState<{ data: T | null; error: string | null; loading: boolean }>({
+    data: null,
+    error: null,
+    loading: true,
+  });
   const seq = useRef(0);
+  // Всегда вызываем актуальную функцию, а перезагрузку запускаем по ключу зависимостей.
+  const fnRef = useRef(fn);
+  useEffect(() => {
+    fnRef.current = fn;
+  });
+  const key = JSON.stringify(deps);
   const run = useCallback(() => {
     const my = ++seq.current;
     setState((s) => ({ ...s, loading: true, error: null }));
-    fn().then(
+    fnRef.current().then(
       (data) => my === seq.current && setState({ data, error: null, loading: false }),
       (e: unknown) => my === seq.current && setState({ data: null, error: errorText(e), loading: false }),
     );
+    // key — сериализованные зависимости: пересоздаём run, когда они меняются (список deps приходит снаружи).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [key]);
+  // Первичная загрузка и перезагрузка при смене ключа: setState внутри run происходит до await, это стандартный сценарий «загрузка данных».
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(run, [run]);
   return { ...state, reload: run, setData: (data: T) => setState({ data, error: null, loading: false }) };
 }
@@ -38,7 +51,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={show}>
       {children}
-      {toast && <div className={`toast ${toast.kind}`} role="status">{toast.text}</div>}
+      {toast && (
+        <div className={`toast ${toast.kind}`} role="status">
+          {toast.text}
+        </div>
+      )}
     </ToastCtx.Provider>
   );
 }
@@ -81,17 +98,26 @@ export function ErrorBox({ text, onRetry }: { text: string; onRetry?: () => void
   return (
     <div className="errbox">
       {text}
-      {onRetry && <button className="btn secondary" onClick={onRetry}>Повторить</button>}
+      {onRetry && (
+        <button className="btn secondary" onClick={onRetry}>
+          Повторить
+        </button>
+      )}
     </div>
   );
 }
 
 export const Card = ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
-  <div className={`card${onClick ? ' click' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined}>{children}</div>
+  <div className={`card${onClick ? ' click' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined}>
+    {children}
+  </div>
 );
 
 export const Row = ({ k, children }: { k: string; children: ReactNode }) => (
-  <div className="row"><span className="k">{k}</span><span className="v">{children}</span></div>
+  <div className="row">
+    <span className="k">{k}</span>
+    <span className="v">{children}</span>
+  </div>
 );
 
 export function Badge({ children, tone }: { children: ReactNode; tone?: 'ok' | 'warn' | 'bad' }) {
@@ -106,8 +132,20 @@ export function statusTone(status: string): 'ok' | 'warn' | 'bad' | undefined {
 }
 
 export function Button({
-  children, onClick, kind, busy, disabled, type = 'button',
-}: { children: ReactNode; onClick?: () => void; kind?: 'secondary' | 'danger'; busy?: boolean; disabled?: boolean; type?: 'button' | 'submit' }) {
+  children,
+  onClick,
+  kind,
+  busy,
+  disabled,
+  type = 'button',
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  kind?: 'secondary' | 'danger';
+  busy?: boolean;
+  disabled?: boolean;
+  type?: 'button' | 'submit';
+}) {
   return (
     <button type={type} className={`btn${kind ? ` ${kind}` : ''}`} onClick={onClick} disabled={busy || disabled}>
       {busy ? 'Подождите…' : children}
@@ -125,11 +163,21 @@ export function Field({ label, error, children }: { label: string; error?: strin
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  onChange: (v: T) => void;
+}) {
   return (
     <div className="seg">
       {options.map((o) => (
-        <button key={o.value} type="button" className={o.value === value ? 'on' : ''} onClick={() => onChange(o.value)}>{o.label}</button>
+        <button key={o.value} type="button" className={o.value === value ? 'on' : ''} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
       ))}
     </div>
   );

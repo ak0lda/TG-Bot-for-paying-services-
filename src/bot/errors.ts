@@ -1,7 +1,16 @@
 import type { BotContext, Deps } from './context.js';
 import { formatRub } from '../domain/money.js';
 import { InvalidTransitionError } from '../domain/order-fsm.js';
-import { ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError } from '../services/order-service.js';
+import {
+  ForbiddenError,
+  OrderDataError,
+  OrderNotFoundError,
+  PayLaterDeniedError,
+  PayLaterLimitError,
+  RequisitesNotAllowedError,
+  RequisitesNotSentError,
+  StaleOrderError,
+} from '../services/order-service.js';
 import { RateUnavailableError } from '../services/rates.js';
 import { o as ot } from '../texts/orders.js';
 import { safeError } from '../logging/safe-error.js';
@@ -28,16 +37,16 @@ export async function handleOrderError(ctx: BotContext, deps: Deps, e: unknown, 
     if (orderId) await showCurrent(ctx, deps, orderId);
     return true;
   }
-  if (e instanceof RequisitesNotSentError) return void (await ctx.reply(ot.noRequisitesYet)), true;
-  if (e instanceof RequisitesNotAllowedError) return void (await ctx.reply(ot.requisitesNotAllowed)), true;
-  if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied)), true;
+  if (e instanceof RequisitesNotSentError) return (void (await ctx.reply(ot.noRequisitesYet)), true);
+  if (e instanceof RequisitesNotAllowedError) return (void (await ctx.reply(ot.requisitesNotAllowed)), true);
+  if (e instanceof PayLaterDeniedError) return (void (await ctx.reply(ot.payLaterDenied)), true);
   if (e instanceof PayLaterLimitError) {
     await ctx.reply(ot.payLaterLimit(formatRub(e.limitMinor), formatRub(e.exposureMinor)), html);
     return true;
   }
-  if (e instanceof ForbiddenError) return void (await ctx.reply(ot.forbidden)), true;
-  if (e instanceof OrderNotFoundError) return void (await ctx.reply(ot.notFound)), true;
-  if (e instanceof RateUnavailableError) return void (await ctx.reply(ot.rateErr(e.currency))), true;
+  if (e instanceof ForbiddenError) return (void (await ctx.reply(ot.forbidden)), true);
+  if (e instanceof OrderNotFoundError) return (void (await ctx.reply(ot.notFound)), true);
+  if (e instanceof RateUnavailableError) return (void (await ctx.reply(ot.rateErr(e.currency))), true);
   if (e instanceof OrderDataError) {
     deps.log.warn({ ...safeError(e) }, 'order data error');
     await ctx.reply(ot.invalidAction);

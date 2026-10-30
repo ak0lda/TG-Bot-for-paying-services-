@@ -19,7 +19,13 @@ export interface RateThresholds {
   ackHours: number;
 }
 
-export const DEFAULT_THRESHOLDS: RateThresholds = { jumpBp: 500, staleHours: 6, manualOldDays: 3, jumpActiveHours: 24, ackHours: 1 };
+export const DEFAULT_THRESHOLDS: RateThresholds = {
+  jumpBp: 500,
+  staleHours: 6,
+  manualOldDays: 3,
+  jumpActiveHours: 24,
+  ackHours: 1,
+};
 
 /** |to − from| / from в базисных пунктах, округление вверх. */
 export function changeBp(from: bigint, to: bigint): number {
@@ -50,14 +56,21 @@ export function assessRate(i: AssessInput, th: RateThresholds = DEFAULT_THRESHOL
     const ageH = (i.now.getTime() - i.rateAt.getTime()) / HOUR;
     if (ageH > th.staleHours) out.push({ kind: 'stale', ageHours: Math.floor(ageH) });
     if (i.jump && i.now.getTime() - i.jump.at.getTime() < th.jumpActiveHours * HOUR) {
-      out.push({ kind: 'jump', fromScaled: i.jump.fromScaled, toScaled: i.jump.toScaled, changeBp: changeBp(i.jump.fromScaled, i.jump.toScaled), at: i.jump.at });
+      out.push({
+        kind: 'jump',
+        fromScaled: i.jump.fromScaled,
+        toScaled: i.jump.toScaled,
+        changeBp: changeBp(i.jump.fromScaled, i.jump.toScaled),
+        at: i.jump.at,
+      });
     }
   } else {
     const ageD = (i.now.getTime() - i.rateAt.getTime()) / (24 * HOUR);
     if (ageD > th.manualOldDays) out.push({ kind: 'manual_old', ageDays: Math.floor(ageD), scaled: i.scaled });
     if (i.cbrScaled) {
       const bp = changeBp(i.cbrScaled, i.scaled);
-      if (bp >= th.jumpBp) out.push({ kind: 'manual_diverged', manualScaled: i.scaled, cbrScaled: i.cbrScaled, changeBp: bp });
+      if (bp >= th.jumpBp)
+        out.push({ kind: 'manual_diverged', manualScaled: i.scaled, cbrScaled: i.cbrScaled, changeBp: bp });
     }
   }
   return out;

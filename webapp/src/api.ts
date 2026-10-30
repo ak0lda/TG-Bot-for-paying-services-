@@ -41,7 +41,8 @@ const get = <T>(p: string) => request<T>('GET', p);
 const post = <T>(p: string, b: unknown = {}) => request<T>('POST', p, b);
 
 type OrderRes = { order: Order };
-const act = (prefix: string) => (id: number, action: string, body: unknown) => post<OrderRes>(`${prefix}/orders/${id}/${action}`, body);
+const act = (prefix: string) => (id: number, action: string, body: unknown) =>
+  post<OrderRes>(`${prefix}/orders/${id}/${action}`, body);
 
 export const api = {
   me: () => get<Me>('/me'),
@@ -55,7 +56,10 @@ export const api = {
   adminOrder: (id: number) => get<OrderRes>(`/admin/orders/${id}`),
   admin: act('/admin'),
   adminComplete: (id: number, body: unknown) =>
-    post<OrderRes & { settlement: { actualRubMinor: string; baseCostMinor: string; diffMinor: string } }>(`/admin/orders/${id}/complete`, body),
+    post<OrderRes & { settlement: { actualRubMinor: string; baseCostMinor: string; diffMinor: string } }>(
+      `/admin/orders/${id}/complete`,
+      body,
+    ),
   adminRate: (cur: string) => get<{ currency: string; rate: string; source: string }>(`/admin/rate/${cur}`),
   stats: (period: string) => get<Stats>(`/admin/stats?period=${encodeURIComponent(period)}`),
 };

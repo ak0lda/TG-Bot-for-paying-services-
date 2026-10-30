@@ -87,7 +87,8 @@ export function adminRoutes(deps: Deps) {
         .parse(req.body);
       const order = await load(req);
       const method = await deps.catalog.getMethod(body.methodId);
-      if (!method || !method.isActive) throw new ApiError(422, 'method_not_found', 'Способ не найден', { field: 'methodId' });
+      if (!method || !method.isActive)
+        throw new ApiError(422, 'method_not_found', 'Способ не найден', { field: 'methodId' });
       const text = body.text ?? (method.instructions || undefined);
       if (!text) throw new ApiError(422, 'text_required', ot.requisitesBadText, { field: 'text' });
       const updated = await deps.orders.setPayMethod(order.id, body.version, req.actor.id, method.id, method.title);
@@ -116,7 +117,8 @@ export function adminRoutes(deps: Deps) {
       const order = await load(req);
       const card = await deps.catalog.getCard(body.cardId);
       if (!card || !card.isActive) throw new ApiError(422, 'card_not_found', 'Карта не найдена', { field: 'cardId' });
-      if (order.type === 'GIFT_CARD' && !body.giftCode) throw new ApiError(422, 'gift_code_required', ot.giftCodePrompt, { field: 'giftCode' });
+      if (order.type === 'GIFT_CARD' && !body.giftCode)
+        throw new ApiError(422, 'gift_code_required', ot.giftCodePrompt, { field: 'giftCode' });
 
       let actualMinor: bigint;
       try {
@@ -125,7 +127,8 @@ export function adminRoutes(deps: Deps) {
         if (e instanceof MoneyParseError) throw new ApiError(422, 'bad_amount', ot.badAmount, { field: 'actual' });
         throw e;
       }
-      if (actualMinor <= 0n || actualMinor > 10_000_000_000n) throw new ApiError(422, 'amount_limit', ot.amountLimit, { field: 'actual' });
+      if (actualMinor <= 0n || actualMinor > 10_000_000_000n)
+        throw new ApiError(422, 'amount_limit', ot.amountLimit, { field: 'actual' });
 
       let rateScaled: bigint;
       if (card.currency === 'RUB') rateScaled = RATE_SCALE;
@@ -156,7 +159,11 @@ export function adminRoutes(deps: Deps) {
     });
 
     app.get('/rate/:currency', async (req) => {
-      const cur = z.string().length(3).transform((s) => s.toUpperCase()).parse((req.params as { currency: string }).currency);
+      const cur = z
+        .string()
+        .length(3)
+        .transform((s) => s.toUpperCase())
+        .parse((req.params as { currency: string }).currency);
       const rate = await deps.rates.getRate(cur);
       return { currency: cur, rate: formatRate(rate.scaled), scaled: rate.scaled.toString(), source: rate.source };
     });
@@ -181,11 +188,13 @@ export function adminRoutes(deps: Deps) {
         byClient: rows(s.byClient),
         byService: rows(s.byService),
         byCard: s.byCard.map((c) => ({
-          label: c.label, currency: c.currency, count: c.count,
-          chargeMinor: c.chargeMinor.toString(), rubMinor: c.rubMinor.toString(),
+          label: c.label,
+          currency: c.currency,
+          count: c.count,
+          chargeMinor: c.chargeMinor.toString(),
+          rubMinor: c.rubMinor.toString(),
         })),
       };
     });
-
   };
 }

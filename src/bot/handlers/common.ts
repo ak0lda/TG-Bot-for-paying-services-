@@ -17,7 +17,11 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
     if (ctx.access === 'ok' && ctx.appUser) {
       const user = ctx.appUser;
       if (user.role === 'ADMIN') await ctx.reply(t.welcomeAdmin, html);
-      else await ctx.reply(t.welcomeClient(user.displayName), { ...html, reply_markup: buildClientMenu(deps.config.WEBAPP_URL) });
+      else
+        await ctx.reply(t.welcomeClient(user.displayName), {
+          ...html,
+          reply_markup: buildClientMenu(deps.config.WEBAPP_URL),
+        });
       return;
     }
 
@@ -37,7 +41,10 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
       return;
     }
     deps.log.info({ userId: res.user.id }, 'client registered via invite');
-    await ctx.reply(t.welcomeClient(res.user.displayName), { ...html, reply_markup: buildClientMenu(deps.config.WEBAPP_URL) });
+    await ctx.reply(t.welcomeClient(res.user.displayName), {
+      ...html,
+      reply_markup: buildClientMenu(deps.config.WEBAPP_URL),
+    });
     const adminChat = deps.config.ADMIN_CHAT_ID ?? deps.config.ADMIN_TELEGRAM_ID;
     await ctx.api
       .sendMessage(Number(adminChat), t.newClientNotice(res.user), html)

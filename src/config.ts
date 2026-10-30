@@ -39,25 +39,40 @@ const schema = z
     ENCRYPTION_KEYS_OLD: z.preprocess(emptyToUndefined, z.string().optional()),
     /** Каталог с бэкапами (только чтение): бот следит, что бэкап делается и свежий. Пусто — проверка отключена. */
     BACKUP_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
-    BACKUP_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(24 * 14).default(36),
+    BACKUP_MAX_AGE_HOURS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 14)
+      .default(36),
     TIMEZONE: z.string().default('Europe/Moscow'),
     /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
     WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),
     /** Каталог со сборкой Mini App (по умолчанию webapp/dist относительно рабочей директории). */
     WEBAPP_DIST: z.string().default('webapp/dist'),
     /** Максимальный возраст initData, секунд. */
-    WEBAPP_INITDATA_TTL_SEC: z.coerce.number().int().min(60).max(7 * 86_400).default(86_400),
+    WEBAPP_INITDATA_TTL_SEC: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(7 * 86_400)
+      .default(86_400),
   })
   .superRefine((cfg, ctx) => {
     if (cfg.BOT_MODE === 'webhook') {
-      if (!cfg.WEBHOOK_URL) ctx.addIssue({ code: 'custom', path: ['WEBHOOK_URL'], message: 'required in webhook mode' });
-      if (!cfg.WEBHOOK_SECRET) ctx.addIssue({ code: 'custom', path: ['WEBHOOK_SECRET'], message: 'required in webhook mode' });
+      if (!cfg.WEBHOOK_URL)
+        ctx.addIssue({ code: 'custom', path: ['WEBHOOK_URL'], message: 'required in webhook mode' });
+      if (!cfg.WEBHOOK_SECRET)
+        ctx.addIssue({ code: 'custom', path: ['WEBHOOK_SECRET'], message: 'required in webhook mode' });
     }
   });
 
 const withKeyring = schema.transform((cfg, ctx) => {
   try {
-    return { ...cfg, keyring: makeKeyring(cfg.ENCRYPTION_KEY_ID, cfg.ENCRYPTION_KEY, parseOldKeys(cfg.ENCRYPTION_KEYS_OLD)) };
+    return {
+      ...cfg,
+      keyring: makeKeyring(cfg.ENCRYPTION_KEY_ID, cfg.ENCRYPTION_KEY, parseOldKeys(cfg.ENCRYPTION_KEYS_OLD)),
+    };
   } catch (e) {
     ctx.addIssue({ code: 'custom', path: ['ENCRYPTION_KEYS_OLD'], message: (e as Error).message });
     return z.NEVER;

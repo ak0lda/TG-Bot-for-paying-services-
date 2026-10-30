@@ -9,11 +9,13 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
   const h = url ? createHarness(url) : (undefined as never);
-  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } = h ?? ({} as typeof h);
+  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } =
+    h ?? ({} as typeof h);
   afterAll(async () => db.$disconnect());
   beforeEach(() => h.reset());
 
-  const ledger = async () => (await db.ledgerEntry.findMany({ orderBy: { id: 'asc' } })).map((l) => [l.type, l.amountMinor]);
+  const ledger = async () =>
+    (await db.ledgerEntry.findMany({ orderBy: { id: 'asc' } })).map((l) => [l.type, l.amountMinor]);
 
   /** Клиент просит пополнение, админ присылает реквизиты, клиент отправляет чек, админ подтверждает. */
   async function topUp(amount: string, opts: { confirm?: boolean } = {}) {
@@ -104,7 +106,11 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     expect(cur).toMatchObject({ status: 'DONE', reservedMinor: 0n, diffMinor: -2_700n });
     expect(await balanceOf(db, cur.clientId)).toBe(400_900n);
     expect(await ledger()).toEqual([
-      ['TOPUP', 500_000n], ['ORDER_RESERVE', -96_400n], ['ORDER_RELEASE', 96_400n], ['ORDER_CHARGE', -96_400n], ['DIFF_ADJUST', -2_700n],
+      ['TOPUP', 500_000n],
+      ['ORDER_RESERVE', -96_400n],
+      ['ORDER_RELEASE', 96_400n],
+      ['ORDER_CHARGE', -96_400n],
+      ['DIFF_ADJUST', -2_700n],
     ]);
   });
 
@@ -118,7 +124,12 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     expect(lastTo(CLIENT)!.text).toMatch(/не хватает/);
     await click(CLIENT, 'w:short:ok');
     let cur = await db.order.findUniqueOrThrow({ where: { id: o.id } });
-    expect(cur).toMatchObject({ status: 'AWAITING_PAYMENT', reservedMinor: 50_000n, payDueMinor: 46_400n, payMethodId: null });
+    expect(cur).toMatchObject({
+      status: 'AWAITING_PAYMENT',
+      reservedMinor: 50_000n,
+      payDueMinor: 46_400n,
+      payMethodId: null,
+    });
     expect(lastTo(CLIENT)!.text).toMatch(/464 ₽/); // ждём реквизиты на доплату, а не на весь итог
     await requisites(o.id, 1);
     expect(allTo(CLIENT)).toMatch(/К оплате: <b>464 ₽<\/b>/);
@@ -167,7 +178,13 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     await topUp('1000');
     const mk = async () => {
       const o = await deps.orders.create({
-        clientId: client.id, type: 'OTHER', service: 'S', amountMinor: 1000n, currency: 'USD', isSubscription: false, payMode: 'BALANCE',
+        clientId: client.id,
+        type: 'OTHER',
+        service: 'S',
+        amountMinor: 1000n,
+        currency: 'USD',
+        isSubscription: false,
+        payMode: 'BALANCE',
       });
       return deps.orders.quote(o.id, o.version, ADMIN_ACTOR(1));
     };
@@ -190,7 +207,10 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     await click(CLIENT, `o:${plain.id}:1:cx`);
 
     await say(ADMIN, `/paylater ${client.id} on 1000`);
-    expect((await db.user.findUniqueOrThrow({ where: { id: client.id } }))).toMatchObject({ payLaterEnabled: true, payLaterLimitMinor: 100_000n });
+    expect(await db.user.findUniqueOrThrow({ where: { id: client.id } })).toMatchObject({
+      payLaterEnabled: true,
+      payLaterLimitMinor: 100_000n,
+    });
 
     const o1 = await newOrder('PAY_LATER');
     await quote(o1.id);
@@ -199,7 +219,10 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     expect(await db.ledgerEntry.count()).toBe(0); // долга ещё нет — он появится при выполнении
 
     await finish(o1.id, '10'); // оценка 918 ₽, факт 900 ₽ -> переплата 18 ₽ в пользу клиента
-    expect(await ledger()).toEqual([['DEBT_OPEN', -96_400n], ['DIFF_ADJUST', 1_800n]]);
+    expect(await ledger()).toEqual([
+      ['DEBT_OPEN', -96_400n],
+      ['DIFF_ADJUST', 1_800n],
+    ]);
     expect(await balanceOf(db, client.id)).toBe(-94_600n);
     expect(allTo(CLIENT)).toMatch(/Долг: <b>946 ₽<\/b>/);
 
@@ -238,7 +261,13 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
   it('PAY_LATER is refused for clients without the switch even via a stale/forged order', async () => {
     const client = await onboard();
     const o = await deps.orders.create({
-      clientId: client.id, type: 'OTHER', service: 'S', amountMinor: 1000n, currency: 'USD', isSubscription: false, payMode: 'PAY_LATER',
+      clientId: client.id,
+      type: 'OTHER',
+      service: 'S',
+      amountMinor: 1000n,
+      currency: 'USD',
+      isSubscription: false,
+      payMode: 'PAY_LATER',
     });
     const q = await deps.orders.quote(o.id, o.version, ADMIN_ACTOR(1));
     await click(CLIENT, `o:${o.id}:${q.version}:cf`);
@@ -250,7 +279,10 @@ describe.skipIf(!url)('finance e2e: balance, top-ups, pay later', () => {
     const client = await onboard();
     await say(ADMIN, `/adjust ${client.id} +500 бонус`);
     await say(ADMIN, `/adjust ${client.id} -150,50 возврат за подписку`);
-    expect(await ledger()).toEqual([['MANUAL_ADJUST', 50_000n], ['MANUAL_ADJUST', -15_050n]]);
+    expect(await ledger()).toEqual([
+      ['MANUAL_ADJUST', 50_000n],
+      ['MANUAL_ADJUST', -15_050n],
+    ]);
     expect(allTo(CLIENT)).toMatch(/скорректировал баланс/);
 
     await say(ADMIN, `/client ${client.id}`);

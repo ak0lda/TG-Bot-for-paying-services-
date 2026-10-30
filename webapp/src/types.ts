@@ -1,6 +1,7 @@
 export type Role = 'ADMIN' | 'CLIENT';
 export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew';
-export type AdminAction = 'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
+export type AdminAction =
+  'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
 
 /** Деньги приходят строками в минимальных единицах (копейки/центы). */
 export interface Order {
@@ -37,7 +38,12 @@ export interface Order {
   createdAt: string;
   actions: Array<ClientAction | AdminAction>;
   /** Реквизиты присылает админ в чат (в БД не хранятся). awaitingRequisites — ещё не прислал. */
-  payment: { method: string | null; requiresReceipt: boolean; dueMinor: string | null; awaitingRequisites: boolean } | null;
+  payment: {
+    method: string | null;
+    requiresReceipt: boolean;
+    dueMinor: string | null;
+    awaitingRequisites: boolean;
+  } | null;
   client: { id: number; name: string; username: string | null } | null;
 }
 

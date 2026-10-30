@@ -18,8 +18,18 @@ const yesNo = (s: string): boolean | null => {
 };
 
 const ADMIN_COMMANDS = [
-  'orders', 'cards', 'card_add', 'card_toggle', 'methods', 'method_add', 'method_edit', 'method_receipt',
-  'method_toggle', 'method_limits', 'method_auto', 'rate',
+  'orders',
+  'cards',
+  'card_add',
+  'card_toggle',
+  'methods',
+  'method_add',
+  'method_edit',
+  'method_receipt',
+  'method_toggle',
+  'method_limits',
+  'method_auto',
+  'rate',
 ];
 
 export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
@@ -45,7 +55,11 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
     const label = parts.join(' ').trim();
     if (!label || !currency) return void (await ctx.reply(ct.cardUsage));
     const bad =
-      !/^[A-Z]{3}$/.test(currency) || label.length < 2 || label.length > 30 || /\d{5,}/.test(label) || detectSecret(label) !== null;
+      !/^[A-Z]{3}$/.test(currency) ||
+      label.length < 2 ||
+      label.length > 30 ||
+      /\d{5,}/.test(label) ||
+      detectSecret(label) !== null;
     if (bad) return void (await ctx.reply(ct.cardBad));
     await ctx.reply(ct.cardAdded(await deps.catalog.addCard(label, currency)), html);
   });
@@ -67,7 +81,12 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
     const [title = '', rawText = '', receiptRaw = 'да'] = ctx.match.split('|').map((s) => s.trim());
     if (!title) return void (await ctx.reply(ct.methodUsage));
     const instructions = rawText === '-' ? '' : rawText;
-    if (title.length < 2 || title.length > 40 || instructions.length > 1000 || (instructions && instructions.length < 2)) {
+    if (
+      title.length < 2 ||
+      title.length > 40 ||
+      instructions.length > 1000 ||
+      (instructions && instructions.length < 2)
+    ) {
       return void (await ctx.reply(ct.methodBad));
     }
     if (detectSecret(instructions) === 'card_number') return void (await ctx.reply(ct.methodHasCard));
@@ -147,7 +166,11 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
         try {
           const r = await deps.rates.getRate(code);
           const time = new Intl.DateTimeFormat('ru-RU', {
-            timeZone: deps.config.TIMEZONE, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+            timeZone: deps.config.TIMEZONE,
+            day: '2-digit',
+            month: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
           }).format(r.at);
           lines.push(ct.rateLine(code, r.scaled, r.source === 'MANUAL' ? 'ручной' : 'ЦБ', time));
         } catch (e) {

@@ -13,7 +13,8 @@ export async function availableModes(
   const user = await deps.db.user.findUniqueOrThrow({ where: { id: clientId } });
   const balance = await balanceOf(deps.db, clientId);
   const modes: Array<{ mode: PayMode; label: string }> = [{ mode: 'PREPAY', label: ot.payModeLabel.PREPAY }];
-  if (availableOf(balance) > 0n) modes.push({ mode: 'BALANCE', label: ot.payModeLabel.BALANCE(formatRub(availableOf(balance))) });
+  if (availableOf(balance) > 0n)
+    modes.push({ mode: 'BALANCE', label: ot.payModeLabel.BALANCE(formatRub(availableOf(balance))) });
   if (user.payLaterEnabled && user.payLaterLimitMinor > 0n) {
     const open = await deps.db.order.aggregate({
       where: { clientId, payMode: 'PAY_LATER', status: { in: ['IN_PROGRESS', 'LINK_INVALID'] } },

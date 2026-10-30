@@ -16,10 +16,17 @@ export const LEDGER_LABEL: Record<LedgerType, string> = {
 
 export const signed = (minor: bigint): string => (minor > 0n ? `+${formatRub(minor)}` : formatRub(minor));
 
-export const balanceText = (minor: bigint): string => (minor < 0n ? `Долг: <b>${formatRub(-minor)}</b>` : `Баланс: <b>${formatRub(minor)}</b>`);
+export const balanceText = (minor: bigint): string =>
+  minor < 0n ? `Долг: <b>${formatRub(-minor)}</b>` : `Баланс: <b>${formatRub(minor)}</b>`;
 
 const fmtDate = (d: Date, tz: string) =>
-  new Intl.DateTimeFormat('ru-RU', { timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d);
+  new Intl.DateTimeFormat('ru-RU', {
+    timeZone: tz,
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(d);
 
 export const ledgerLine = (e: LedgerEntry, tz: string): string =>
   `${fmtDate(e.createdAt, tz)} · ${LEDGER_LABEL[e.type]}${e.orderId ? ` #${e.orderId}` : ''}: <b>${signed(e.amountMinor)}</b>`;
@@ -50,14 +57,23 @@ export const b = {
     `💳 Пополнение #${id}: переведи <b>${formatRub(amount)}</b>\nСпособ: <b>${escapeHtml(method)}</b>\n\n${escapeHtml(text)}\n\n${needsReceipt ? 'После перевода нажми «Отправить чек».' : 'Админ подтвердит поступление вручную.'}`,
   sendReceiptBtn: '🧾 Отправить чек',
   receiptPrompt: 'Пришли скриншот или файл чека (фото / PDF).',
-  receiptSent: (id: number) => `Чек по пополнению #${id} отправлен админу. Как только он подтвердит поступление, деньги появятся на балансе.`,
+  receiptSent: (id: number) =>
+    `Чек по пополнению #${id} отправлен админу. Как только он подтвердит поступление, деньги появятся на балансе.`,
   receiptNotPending: 'Это пополнение уже обработано.',
   topUpConfirmed: (amount: bigint, balance: bigint) =>
     `✅ Пополнение на ${formatRub(amount)} подтверждено.\n${balanceText(balance)}`,
-  topUpRejected: (id: number) => `❌ Пополнение #${id} отклонено — поступление не найдено. Если это ошибка, напиши админу.`,
+  topUpRejected: (id: number) =>
+    `❌ Пополнение #${id} отклонено — поступление не найдено. Если это ошибка, напиши админу.`,
 
   // ── Админ ──
-  adminTopUp: (t: { id: number; client: User; amount: bigint; method: string | null; receipts: number; debt: bigint }) =>
+  adminTopUp: (t: {
+    id: number;
+    client: User;
+    amount: bigint;
+    method: string | null;
+    receipts: number;
+    debt: bigint;
+  }) =>
     `<b>💰 Пополнение #${t.id}</b>\nКлиент: #${t.client.id} ${escapeHtml(t.client.displayName)}${t.client.username ? ` (@${escapeHtml(t.client.username)})` : ''}\nСумма: <b>${formatRub(t.amount)}</b>\n${
       t.method ? `Способ: ${escapeHtml(t.method)} (реквизиты отправлены)` : '⏳ Реквизиты не отправлены — выбери способ'
     }${t.receipts > 0 ? `\nЧеков от клиента: ${t.receipts}` : ''}${t.debt > 0n ? `\nДолг клиента: ${formatRub(t.debt)} — будет погашен в первую очередь` : ''}`,
@@ -65,13 +81,15 @@ export const b = {
   rejectTopUp: '❌ Не найдено / отклонить',
   topUpRequisitesPrompt: (id: number, method: string, amount: bigint) =>
     `Пришли реквизиты для клиента (пополнение #${id}).\nСпособ: <b>${escapeHtml(method)}</b>, сумма: <b>${formatRub(amount)}</b>.\nТекст уйдёт клиенту; бот его нигде не сохраняет.`,
-  topUpRequisitesSent: (id: number, method: string) => `📤 Реквизиты по пополнению #${id} отправлены клиенту (${escapeHtml(method)}).`,
+  topUpRequisitesSent: (id: number, method: string) =>
+    `📤 Реквизиты по пополнению #${id} отправлены клиенту (${escapeHtml(method)}).`,
   adminAutoTopUp: (id: number, method: string, amount: bigint) =>
     `🤖 Пополнение #${id}: реквизиты (${escapeHtml(method)}, ${formatRub(amount)}) отправлены клиенту автоматически. Жди чек и подтверди поступление.`,
   adminAutoTopUpMiss: (id: number, amount: bigint) =>
     `⚠️ Пополнение #${id}: ${formatRub(amount)} не подходит ни под один способ с автоотправкой — выбери способ и отправь реквизиты вручную.`,
   adminTopUpReceipt: (id: number) => `🧾 Клиент прислал чек по пополнению #${id}.`,
-  topUpDone: (id: number, balance: bigint) => `Пополнение #${id} подтверждено. ${balanceText(balance).replace(/<\/?b>/g, '')}`,
+  topUpDone: (id: number, balance: bigint) =>
+    `Пополнение #${id} подтверждено. ${balanceText(balance).replace(/<\/?b>/g, '')}`,
   topUpDeclined: (id: number) => `Пополнение #${id} отклонено.`,
   topUpAlready: 'Уже обработано.',
 

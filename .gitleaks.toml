@@ -1,0 +1,11 @@
+# Правила gitleaks по умолчанию + исключения для заведомо вымышленных тестовых значений.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Вымышленные значения из тестов и примеров"
+regexes = [
+  '''123456:ABCDEFGHIJKLMNOPQRSTUV''',
+  '''abcdefghijklmnop1234''',
+  '''\+995 555 00 00 00''',
+]

@@ -1,15 +1,48 @@
 const SHORTENERS = [
-  'bit.ly', 't.co', 'tinyurl.com', 'cutt.ly', 'goo.gl', 'ow.ly', 'is.gd', 'v.gd', 'buff.ly', 'rebrand.ly',
-  'shorturl.at', 't.ly', 'rb.gy', 'tiny.cc', 'clck.ru', 'vk.cc', 'lnkd.in', 's.id', 'trib.al', 'bl.ink',
-  'soo.gd', 'qr.ae', 'adf.ly', 'bit.do', 'mcaf.ee', 'shorturl.com', 'x.co', 'po.st', 'su.pr', 'u.to',
-  'cli.re', 'l.ead.me', 'short.io', 'tr.ee', 'lnk.to', 'urlz.fr', 'git.io', 'amzn.to', 'youtu.be',
+  'bit.ly',
+  't.co',
+  'tinyurl.com',
+  'cutt.ly',
+  'goo.gl',
+  'ow.ly',
+  'is.gd',
+  'v.gd',
+  'buff.ly',
+  'rebrand.ly',
+  'shorturl.at',
+  't.ly',
+  'rb.gy',
+  'tiny.cc',
+  'clck.ru',
+  'vk.cc',
+  'lnkd.in',
+  's.id',
+  'trib.al',
+  'bl.ink',
+  'soo.gd',
+  'qr.ae',
+  'adf.ly',
+  'bit.do',
+  'mcaf.ee',
+  'shorturl.com',
+  'x.co',
+  'po.st',
+  'su.pr',
+  'u.to',
+  'cli.re',
+  'l.ead.me',
+  'short.io',
+  'tr.ee',
+  'lnk.to',
+  'urlz.fr',
+  'git.io',
+  'amzn.to',
+  'youtu.be',
 ];
 
 export type LinkError = 'invalid' | 'not_https' | 'shortener' | 'credentials' | 'too_long';
 
-export type LinkResult =
-  | { ok: true; url: string; domain: string; trusted: boolean }
-  | { ok: false; error: LinkError };
+export type LinkResult = { ok: true; url: string; domain: string; trusted: boolean } | { ok: false; error: LinkError };
 
 const matchesDomain = (host: string, base: string) => host === base || host.endsWith(`.${base}`);
 

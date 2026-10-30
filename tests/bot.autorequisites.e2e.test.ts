@@ -69,7 +69,10 @@ describe.skipIf(!url)('automatic requisites by amount', () => {
       expect(lastTo(ADMIN)!.text, cmd).toMatch(re);
     }
     await say(ADMIN, '/method_limits 1 off');
-    expect(await db.paymentMethod.findUniqueOrThrow({ where: { id: 1 } })).toMatchObject({ minAmountMinor: null, maxAmountMinor: null });
+    expect(await db.paymentMethod.findUniqueOrThrow({ where: { id: 1 } })).toMatchObject({
+      minAmountMinor: null,
+      maxAmountMinor: null,
+    });
     await say(CLIENT, '/method_auto 1 off');
     expect((await db.paymentMethod.findUniqueOrThrow({ where: { id: 1 } })).autoSend).toBe(true); // клиент не может
     expect(lastTo(CLIENT)!.text).toMatch(/только администратору/);
@@ -87,7 +90,11 @@ describe.skipIf(!url)('automatic requisites by amount', () => {
     expect(h.cbData(lastTo(CLIENT))).toEqual([`o:${small.id}:3:pd`, `o:${small.id}:3:cx`]);
     expect(allTo(ADMIN)).toMatch(/отправлены клиенту автоматически/);
     const ev = await db.orderEvent.findFirstOrThrow({ where: { orderId: small.id }, orderBy: { id: 'desc' } });
-    expect(ev).toMatchObject({ comment: 'Реквизиты отправлены автоматически: СБП', actorId: null, toStatus: 'AWAITING_PAYMENT' });
+    expect(ev).toMatchObject({
+      comment: 'Реквизиты отправлены автоматически: СБП',
+      actorId: null,
+      toStatus: 'AWAITING_PAYMENT',
+    });
 
     // дальше обычный путь: клиент оплатил -> админ подтвердил
     await click(CLIENT, `o:${small.id}:3:pd`);
@@ -156,11 +163,21 @@ describe.skipIf(!url)('automatic requisites by amount', () => {
     await setupMethods();
     const authFor = (id: number) => `tma ${buildSignedInitData({ id, first_name: `U${id}` }, BOT_TOKEN)}`;
     const call = async (id: number, path: string, body?: unknown) => {
-      const r = await app.inject({ method: 'POST', url: `/api${path}`, headers: { authorization: authFor(id) }, payload: (body ?? {}) as object });
-      return { status: r.statusCode, json: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await app.inject({
+        method: 'POST',
+        url: `/api${path}`,
+        headers: { authorization: authFor(id) },
+        payload: (body ?? {}) as object,
+      });
+      return { status: r.statusCode, json: r.json() as any };
     };
     const created = await call(CLIENT, '/orders', {
-      type: 'PAYMENT_LINK', url: 'https://checkout.stripe.com/c/pay/abc', service: 'Netflix', description: 'Premium', amount: '10', currency: 'USD',
+      type: 'PAYMENT_LINK',
+      url: 'https://checkout.stripe.com/c/pay/abc',
+      service: 'Netflix',
+      description: 'Premium',
+      amount: '10',
+      currency: 'USD',
     });
     const id = created.json.order.id;
     await call(ADMIN, `/admin/orders/${id}/quote`, { version: 1 });
@@ -171,6 +188,7 @@ describe.skipIf(!url)('automatic requisites by amount', () => {
     expect(allTo(CLIENT)).toMatch(/СБП: \+7 900 111-22-33/); // реквизиты ушли клиенту в чат
     expect(allTo(ADMIN)).toMatch(/отправлены клиенту автоматически/);
     expect(JSON.stringify(conf.json)).not.toContain('+7 900 111-22-33'); // но в ответ API текст не попадает
-    void click; void orderVersion;
+    void click;
+    void orderVersion;
   });
 });

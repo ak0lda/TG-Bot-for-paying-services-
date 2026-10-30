@@ -28,8 +28,7 @@ export const TYPE_LABEL: Record<OrderType, string> = {
 export const periodLabel = (kind: PeriodKind | null, days: number | null): string =>
   kind === 'MONTH' ? 'месяц' : kind === 'YEAR' ? 'год' : kind === 'CUSTOM' ? `${days} дн.` : '—';
 
-export const LINK_REMINDER =
-  '⏱ Ссылка на оплату может истечь, поэтому после расчёта лучше сразу переводить деньги.';
+export const LINK_REMINDER = '⏱ Ссылка на оплату может истечь, поэтому после расчёта лучше сразу переводить деньги.';
 
 export const o = {
   // ── Меню ──
@@ -131,13 +130,15 @@ export const o = {
     `🤖 Заявка #${id}: реквизиты (${escapeHtml(method)}, ${amount}) отправлены клиенту автоматически — сумма подошла под способ. Жди оплату; при необходимости отправь другие реквизиты кнопкой.`,
   adminAutoMiss: (id: number, amount: string) =>
     `⚠️ Заявка #${id}: ${amount} не подходит ни под один способ с автоотправкой — выбери способ и отправь реквизиты вручную.`,
-  requisitesSent: (id: number, method: string) => `📤 Реквизиты по заявке #${id} отправлены клиенту (${escapeHtml(method)}).`,
+  requisitesSent: (id: number, method: string) =>
+    `📤 Реквизиты по заявке #${id} отправлены клиенту (${escapeHtml(method)}).`,
   requisitesNotAllowed: 'Реквизиты можно отправить только пока заявка ждёт оплату.',
   noRequisitesYet: 'Админ ещё не прислал реквизиты — дождись сообщения от бота, потом нажми «Я оплатил».',
 
   // ── Клиент ──
   quoteReady: (id: number) => `💬 Заявка #${id} рассчитана.`,
-  expiredNotice: (id: number) => `⌛ Расчёт по заявке #${id} истёк. Нажми «Пересчитать», чтобы получить актуальную сумму.`,
+  expiredNotice: (id: number) =>
+    `⌛ Расчёт по заявке #${id} истёк. Нажми «Пересчитать», чтобы получить актуальную сумму.`,
   expiredNow: 'Расчёт истёк. Нажми «Пересчитать».',
   noMethods: 'Способы оплаты ещё не настроены — напиши админу.',
   chooseMethod: 'Как будешь переводить деньги?',

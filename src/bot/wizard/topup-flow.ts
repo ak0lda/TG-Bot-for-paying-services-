@@ -69,7 +69,11 @@ function topUpWizard(deps: Deps): WizardDef<TopUpData> {
         return;
       }
       await ctx.reply(b.topUpRequested(topUp.id, topUp.amountMinor), html);
-      await notifyAdminTopUp(deps, topUp, auto.hadCandidates ? b.adminAutoTopUpMiss(topUp.id, topUp.amountMinor) : undefined);
+      await notifyAdminTopUp(
+        deps,
+        topUp,
+        auto.hadCandidates ? b.adminAutoTopUpMiss(topUp.id, topUp.amountMinor) : undefined,
+      );
     },
   };
 }

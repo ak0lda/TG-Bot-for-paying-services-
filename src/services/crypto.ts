@@ -58,7 +58,9 @@ function open(payload: Buffer, key: Buffer, aad: Buffer | null, offset: number):
   const decipher = createDecipheriv('aes-256-gcm', key, payload.subarray(offset, offset + IV_LEN));
   if (aad) decipher.setAAD(aad);
   decipher.setAuthTag(payload.subarray(offset + IV_LEN, offset + IV_LEN + TAG_LEN));
-  return Buffer.concat([decipher.update(payload.subarray(offset + IV_LEN + TAG_LEN)), decipher.final()]).toString('utf8');
+  return Buffer.concat([decipher.update(payload.subarray(offset + IV_LEN + TAG_LEN)), decipher.final()]).toString(
+    'utf8',
+  );
 }
 
 export function decrypt(payload: Uint8Array, ring: Keyring): string {
@@ -98,7 +100,10 @@ export function needsRotation(payload: Uint8Array, ring: Keyring): boolean {
 /** "2:base64,3:base64" -> Map. */
 export function parseOldKeys(raw: string | undefined): Map<number, Buffer> {
   const out = new Map<number, Buffer>();
-  for (const part of (raw ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+  for (const part of (raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
     const m = /^(\d{1,3}):([A-Za-z0-9+/=_-]+)$/.exec(part);
     if (!m) throw new Error('ENCRYPTION_KEYS_OLD must look like "1:<base64>,2:<base64>"');
     const id = Number(m[1]);

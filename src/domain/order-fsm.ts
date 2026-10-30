@@ -21,7 +21,15 @@ const credit = (o: FsmOrder) => o.payMode === 'BALANCE' || o.payMode === 'PAY_LA
 const T = (from: OrderStatus, to: OrderStatus, actors: Actor[], guard?: (o: FsmOrder) => boolean): Transition =>
   guard ? { from, to, actors, guard } : { from, to, actors };
 
-const REJECTABLE: OrderStatus[] = ['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS', 'LINK_INVALID', 'EXPIRED'];
+const REJECTABLE: OrderStatus[] = [
+  'NEW',
+  'QUOTED',
+  'AWAITING_PAYMENT',
+  'PAYMENT_CHECK',
+  'IN_PROGRESS',
+  'LINK_INVALID',
+  'EXPIRED',
+];
 /** Клиент может отменить, пока оплата не подтверждена админом. */
 const CANCELABLE: OrderStatus[] = ['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'EXPIRED'];
 

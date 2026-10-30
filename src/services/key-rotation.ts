@@ -14,7 +14,10 @@ export interface RotationReport {
  * dryRun — только посчитать. Каждая запись обновляется условно (по старому шифртексту), чтобы не затереть параллельное изменение.
  */
 export async function rotateGiftCodes(db: Db, ring: Keyring, opts: { dryRun?: boolean } = {}): Promise<RotationReport> {
-  const rows = await db.order.findMany({ where: { giftCodeEnc: { not: null } }, select: { id: true, giftCodeEnc: true } });
+  const rows = await db.order.findMany({
+    where: { giftCodeEnc: { not: null } },
+    select: { id: true, giftCodeEnc: true },
+  });
   const report: RotationReport = { total: rows.length, alreadyCurrent: 0, rotated: 0, failed: [] };
   for (const row of rows) {
     const enc = row.giftCodeEnc!;

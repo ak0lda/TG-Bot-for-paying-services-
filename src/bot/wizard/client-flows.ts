@@ -27,7 +27,8 @@ interface ConfirmData {
 export async function startConfirm(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
   const total = order.totalMinor ?? 0n;
   const balance = await balanceOf(deps.db, order.clientId);
-  const shortfall = order.payMode === 'BALANCE' ? total - (availableOf(balance) < total ? availableOf(balance) : total) : 0n;
+  const shortfall =
+    order.payMode === 'BALANCE' ? total - (availableOf(balance) < total ? availableOf(balance) : total) : 0n;
   await deps.wizards.start(ctx, confirmWizard(deps), {
     orderId: order.id,
     version: order.version,
@@ -61,7 +62,10 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
         }
         if (order.status === 'IN_PROGRESS') {
           const how = ot.payModeShort[order.payMode];
-          await ctx.reply(`${ot.confirmedInProgress(order.id, how)}\n\n${view.text}`, { ...html, reply_markup: view.keyboard });
+          await ctx.reply(`${ot.confirmedInProgress(order.id, how)}\n\n${view.text}`, {
+            ...html,
+            reply_markup: view.keyboard,
+          });
           await deps.presenter.notifyAdmin(order, ot.adminInProgress(order.id, how));
           return;
         }
@@ -73,7 +77,10 @@ function confirmWizard(deps: Deps): WizardDef<ConfirmData> {
           return;
         }
         await ctx.reply(ot.waitRequisites(order.id, due), { ...html, reply_markup: view.keyboard });
-        await deps.presenter.notifyAdmin(order, auto.hadCandidates ? ot.adminAutoMiss(order.id, due) : ot.adminNeedRequisites(order.id));
+        await deps.presenter.notifyAdmin(
+          order,
+          auto.hadCandidates ? ot.adminAutoMiss(order.id, due) : ot.adminNeedRequisites(order.id),
+        );
       } catch (e) {
         if (e instanceof PayLaterDeniedError) return void (await ctx.reply(ot.payLaterDenied));
         if (e instanceof PayLaterLimitError) {
@@ -177,4 +184,3 @@ function newLinkWizard(deps: Deps): WizardDef<NewLinkData> {
     },
   };
 }
-

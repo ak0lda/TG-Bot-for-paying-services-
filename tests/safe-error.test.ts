@@ -12,17 +12,30 @@ class PrismaClientKnownRequestError extends Error {
 
 describe('safeError', () => {
   it('never leaks Prisma query values (client text lives in the message)', () => {
-    const e = new PrismaClientKnownRequestError('Invalid `prisma.order.create()` invocation:\n{ data: { service: "Секретный сервис Васи", comment: "мой пароль 123" } }');
+    const e = new PrismaClientKnownRequestError(
+      'Invalid `prisma.order.create()` invocation:\n{ data: { service: "Секретный сервис Васи", comment: "мой пароль 123" } }',
+    );
     expect(safeError(e)).toEqual({ err: 'PrismaClientKnownRequestError P2002', code: 'P2002' });
   });
 
   it('keeps Telegram API error code, method and a short description', () => {
-    const e = new GrammyError('x', { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' }, 'sendMessage', {});
-    expect(safeError(e)).toEqual({ err: 'GrammyError 403 sendMessage: Forbidden: bot was blocked by the user', code: '403' });
+    const e = new GrammyError(
+      'x',
+      { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user' },
+      'sendMessage',
+      {},
+    );
+    expect(safeError(e)).toEqual({
+      err: 'GrammyError 403 sendMessage: Forbidden: bot was blocked by the user',
+      code: '403',
+    });
   });
 
   it('network errors expose only the system code, never the URL (it contains the bot token)', () => {
-    const cause = Object.assign(new Error('fetch https://api.telegram.org/bot123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/sendMessage failed'), { code: 'ECONNRESET' });
+    const cause = Object.assign(
+      new Error('fetch https://api.telegram.org/bot123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/sendMessage failed'),
+      { code: 'ECONNRESET' },
+    );
     const e = new HttpError("Network request for 'sendMessage' failed!", cause);
     const out = safeError(e);
     expect(out).toEqual({ err: 'HttpError (network) ECONNRESET', code: 'ECONNRESET' });
@@ -30,7 +43,9 @@ describe('safeError', () => {
   });
 
   it('masks tokens and long numbers in generic messages, keeps one line only', () => {
-    const e = new Error('boom 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi and id 99887766554433\nstack-ish second line with secrets');
+    const e = new Error(
+      'boom 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi and id 99887766554433\nstack-ish second line with secrets',
+    );
     const out = safeError(e).err;
     expect(out).toMatch(/^Error: boom \[token\] and id \[num\]( @src\/|$)/);
     expect(out).not.toContain('second line');
@@ -59,7 +74,8 @@ describe('safeError', () => {
   });
 
   it('codeLocation takes the first src/dist frame and hides absolute paths', () => {
-    const stack = 'Error: x\n    at a (/usr/lib/node_modules/foo/index.js:1:1)\n    at b (/app/dist/bot/index.js:42:7)\n    at c (/app/dist/x.js:1:1)';
+    const stack =
+      'Error: x\n    at a (/usr/lib/node_modules/foo/index.js:1:1)\n    at b (/app/dist/bot/index.js:42:7)\n    at c (/app/dist/x.js:1:1)';
     expect(codeLocation(stack)).toBe('dist/bot/index.js:42');
     expect(codeLocation('Error: x')).toBeUndefined();
   });

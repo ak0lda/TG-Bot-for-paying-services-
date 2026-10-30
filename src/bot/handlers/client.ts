@@ -22,7 +22,8 @@ export function clientHandlers(deps: Deps): Composer<BotContext> {
   c.hears(ot.btnMy, async (ctx) => {
     if (!(await clientOnly(ctx))) return;
     const orders = await deps.orders.listForClient(ctx.appUser!.id);
-    if (orders.length === 0) return void (await ctx.reply(ot.noOrders, { reply_markup: buildClientMenu(deps.config.WEBAPP_URL) }));
+    if (orders.length === 0)
+      return void (await ctx.reply(ot.noOrders, { reply_markup: buildClientMenu(deps.config.WEBAPP_URL) }));
     await ctx.reply(ot.myOrdersTitle, { reply_markup: deps.presenter.list(orders) });
   });
 

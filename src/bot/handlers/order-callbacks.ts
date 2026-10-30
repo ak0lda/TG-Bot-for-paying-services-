@@ -15,9 +15,7 @@ const CLIENT_ACTIONS: OrderAction[] = ['cf', 'pd', 'cx', 'nl'];
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 async function editView(ctx: BotContext, view: View): Promise<void> {
-  await ctx
-    .editMessageText(view.text, { ...html, reply_markup: view.keyboard })
-    .catch(() => undefined); // «message is not modified» и т.п. — не критично
+  await ctx.editMessageText(view.text, { ...html, reply_markup: view.keyboard }).catch(() => undefined); // «message is not modified» и т.п. — не критично
 }
 
 export function orderCallbacks(deps: Deps): Composer<BotContext> {
@@ -61,8 +59,14 @@ export function orderCallbacks(deps: Deps): Composer<BotContext> {
           const assessment = order.currency ? await deps.rates.assess(order.currency) : null;
           const warnings = assessment?.warnings ?? [];
           if (isAdmin && action !== 'qf' && warnings.length > 0) {
-            const kb = new InlineKeyboard().text(rw.confirmBtn, orderCb(id, version, 'qf')).row().text(rw.cancelBtn, orderCb(id, version, 'v'));
-            await ctx.reply([rw.title(order.currency!, id), ...warnings.map((w) => warningText(w, order.currency!))].join('\n\n'), { reply_markup: kb });
+            const kb = new InlineKeyboard()
+              .text(rw.confirmBtn, orderCb(id, version, 'qf'))
+              .row()
+              .text(rw.cancelBtn, orderCb(id, version, 'v'));
+            await ctx.reply(
+              [rw.title(order.currency!, id), ...warnings.map((w) => warningText(w, order.currency!))].join('\n\n'),
+              { reply_markup: kb },
+            );
             break;
           }
           if (isAdmin && action === 'qf' && order.currency) await deps.rates.acknowledge(order.currency);

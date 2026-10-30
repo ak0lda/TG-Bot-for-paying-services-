@@ -11,7 +11,10 @@ import { safeError } from '../logging/safe-error.js';
 
 const SWEEP_MS = 5 * 60 * 1000;
 
-type SchedulerDeps = Pick<Deps, 'orders' | 'presenter' | 'log' | 'db' | 'settings' | 'notifier' | 'config' | 'alerts' | 'rates'>;
+type SchedulerDeps = Pick<
+  Deps,
+  'orders' | 'presenter' | 'log' | 'db' | 'settings' | 'notifier' | 'config' | 'alerts' | 'rates'
+>;
 
 const localHour = (now: Date, tz: string): number =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }).format(now)) % 24;
@@ -62,7 +65,9 @@ export async function sendSubscriptionReminders(deps: SchedulerDeps, now: Date =
   let sent = 0;
   for (const o of subs) {
     if (o.client.status !== 'ACTIVE') continue;
-    const renewal = await deps.db.order.findFirst({ where: { renewedFromId: o.id, status: { notIn: ['CANCELED', 'REJECTED'] } } });
+    const renewal = await deps.db.order.findFirst({
+      where: { renewedFromId: o.id, status: { notIn: ['CANCELED', 'REJECTED'] } },
+    });
     if (renewal) continue;
     try {
       await deps.db.reminder.create({ data: { key: `sub:${o.id}:${o.nextChargeAt!.toISOString().slice(0, 10)}` } });
@@ -94,8 +99,10 @@ export async function runHealthChecks(deps: SchedulerDeps, startedAt: Date, now:
   if (BACKUP_DIR) {
     const st = await readBackupStatus(BACKUP_DIR, now, BACKUP_MAX_AGE_HOURS);
     const HALF_DAY = 12 * 3_600_000;
-    if (st.state === 'failed') await deps.alerts.alert('backup:failed', al.backup.failed(st.ageHours, st.reason), HALF_DAY);
-    else if (st.state === 'stale') await deps.alerts.alert('backup:stale', al.backup.stale(st.ageHours, BACKUP_MAX_AGE_HOURS), HALF_DAY);
+    if (st.state === 'failed')
+      await deps.alerts.alert('backup:failed', al.backup.failed(st.ageHours, st.reason), HALF_DAY);
+    else if (st.state === 'stale')
+      await deps.alerts.alert('backup:stale', al.backup.stale(st.ageHours, BACKUP_MAX_AGE_HOURS), HALF_DAY);
     else if (st.state === 'missing' && now.getTime() - startedAt.getTime() > BACKUP_MAX_AGE_HOURS * 3_600_000) {
       await deps.alerts.alert('backup:missing', al.backup.missing(BACKUP_MAX_AGE_HOURS), HALF_DAY);
     }
@@ -104,7 +111,8 @@ export async function runHealthChecks(deps: SchedulerDeps, startedAt: Date, now:
   await deps.rates.refresh(); // скачки и недоступность ЦБ замечаются без участия клиентов
   const age = await deps.rates.cbrAgeHours();
   const staleAfter = (await deps.settings.getAll()).rateStaleHours;
-  if (age !== null && age > staleAfter) await deps.alerts.alert('rates:stale', rw.alertStale(Math.floor(age)), 6 * 3_600_000);
+  if (age !== null && age > staleAfter)
+    await deps.alerts.alert('rates:stale', rw.alertStale(Math.floor(age)), 6 * 3_600_000);
 }
 
 /** Планировщик: истечение расчётов, напоминания (долги, подписки), очистка кодов подарочных карт. */

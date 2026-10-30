@@ -9,9 +9,9 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5432:5432" # только локально, для разработки
+      - '127.0.0.1:5432:5432' # только локально, для разработки
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-bot}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER:-bot}']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -28,7 +28,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${HTTP_PORT:-3000}:3000"
+      - '127.0.0.1:${HTTP_PORT:-3000}:3000'
     volumes:
       - ./backups:/backups:ro
 
@@ -58,12 +58,12 @@ services:
   #   docker compose --profile https up -d
   caddy:
     image: caddy:2-alpine
-    profiles: ["https", "webhook"]
+    profiles: ['https', 'webhook']
     restart: unless-stopped
     depends_on: [app]
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     environment:
       DOMAIN: ${DOMAIN:-}
     volumes:

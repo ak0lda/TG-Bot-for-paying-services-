@@ -37,7 +37,10 @@ describe.skipIf(!url)('operational alerts to the admin', () => {
   it('an unexpected handler error: client sees a neutral message, admin gets a PII-free alert once per cooldown', async () => {
     await onboard();
     const spy = vi.spyOn(deps.orders, 'listForClient').mockRejectedValue(
-      Object.assign(new Error('Invalid `prisma.order.findMany()`: { comment: "пароль клиента" }'), { name: 'PrismaClientKnownRequestError', code: 'P2025' }),
+      Object.assign(new Error('Invalid `prisma.order.findMany()`: { comment: "пароль клиента" }'), {
+        name: 'PrismaClientKnownRequestError',
+        code: 'P2025',
+      }),
     );
     h.sent.length = 0;
     // handleUpdate пробрасывает ошибку наружу; в polling/webhook её перехватывает bot.catch — делаем то же.
@@ -61,9 +64,15 @@ describe.skipIf(!url)('operational alerts to the admin', () => {
 
   it('Mini App API 500: generic response, alert with the route and without error text', async () => {
     await onboard();
-    const spy = vi.spyOn(deps.orders, 'listForClient').mockRejectedValue(new Error('db exploded with client data: секрет'));
+    const spy = vi
+      .spyOn(deps.orders, 'listForClient')
+      .mockRejectedValue(new Error('db exploded with client data: секрет'));
     h.sent.length = 0;
-    const res = await app.inject({ method: 'GET', url: '/api/orders', headers: { authorization: `tma ${buildSignedInitData({ id: CLIENT, first_name: 'U' }, BOT_TOKEN)}` } });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/orders',
+      headers: { authorization: `tma ${buildSignedInitData({ id: CLIENT, first_name: 'U' }, BOT_TOKEN)}` },
+    });
     spy.mockRestore();
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({ error: 'internal', message: 'Внутренняя ошибка' });
@@ -101,11 +110,28 @@ describe.skipIf(!url)('operational alerts to the admin', () => {
   it('stale CBR rates alert the admin (CBR down, saved snapshot is old)', async () => {
     // последний известный снимок — 10 часов назад, ЦБ недоступен
     const old = new Date(Date.now() - 10 * 3_600_000).toISOString();
-    await db.setting.upsert({ where: { key: 'rateSeen' }, create: { key: 'rateSeen', value: { at: old, rates: { USD: '9000000000' } } }, update: { value: { at: old, rates: { USD: '9000000000' } } } });
+    await db.setting.upsert({
+      where: { key: 'rateSeen' },
+      create: { key: 'rateSeen', value: { at: old, rates: { USD: '9000000000' } } },
+      update: { value: { at: old, rates: { USD: '9000000000' } } },
+    });
     const { RatesService } = await import('../src/services/rates.js');
-    const failing = new RatesService(db, deps.log, async () => { throw new Error('cbr down'); }, undefined, deps.settings);
+    const failing = new RatesService(
+      db,
+      deps.log,
+      async () => {
+        throw new Error('cbr down');
+      },
+      undefined,
+      deps.settings,
+    );
     const sent: string[] = [];
-    const fakeDeps = { ...deps, rates: failing, config: { ...deps.config, BACKUP_DIR: undefined }, alerts: { alert: async (_k: string, t: string) => (sent.push(t), true), error: async () => true } } as never;
+    const fakeDeps = {
+      ...deps,
+      rates: failing,
+      config: { ...deps.config, BACKUP_DIR: undefined },
+      alerts: { alert: async (_k: string, t: string) => (sent.push(t), true), error: async () => true },
+    } as never;
     await runHealthChecks(fakeDeps, new Date());
     expect(sent.join()).toMatch(/Курс ЦБ не обновлялся 10 ч/);
     void lastTo;

@@ -18,10 +18,14 @@ const db = createDb(cfg.DATABASE_URL);
 const dryRun = process.argv.includes('--dry-run');
 try {
   const r = await rotateGiftCodes(db, cfg.keyring, { dryRun });
-  console.log(`${dryRun ? '[dry-run] ' : ''}всего кодов: ${r.total}, уже текущим ключом: ${r.alreadyCurrent}, ${dryRun ? 'будет перешифровано' : 'перешифровано'}: ${r.rotated}`);
+  console.log(
+    `${dryRun ? '[dry-run] ' : ''}всего кодов: ${r.total}, уже текущим ключом: ${r.alreadyCurrent}, ${dryRun ? 'будет перешифровано' : 'перешифровано'}: ${r.rotated}`,
+  );
   console.log(`осталось со старым ключом: ${dryRun ? r.rotated : r.failed.length}`);
   if (r.failed.length) {
-    console.error(`НЕ удалось расшифровать заявки: ${r.failed.join(', ')} — нет подходящего старого ключа в ENCRYPTION_KEYS_OLD или данные повреждены`);
+    console.error(
+      `НЕ удалось расшифровать заявки: ${r.failed.join(', ')} — нет подходящего старого ключа в ENCRYPTION_KEYS_OLD или данные повреждены`,
+    );
     process.exitCode = 1;
   }
 } finally {

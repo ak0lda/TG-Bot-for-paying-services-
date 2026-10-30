@@ -6,7 +6,7 @@ const CLIENT2 = 2001;
 
 describe.skipIf(!url)('admin-sent requisites (orders and top-ups)', () => {
   const h = url ? createHarness(url) : (undefined as never);
-  const { db, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } = h ?? ({} as typeof h);
+  const { db, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion } = h ?? ({} as typeof h);
   afterAll(async () => db.$disconnect());
   beforeEach(() => h.reset());
 
@@ -52,7 +52,9 @@ describe.skipIf(!url)('admin-sent requisites (orders and top-ups)', () => {
     const o = await db.order.findUniqueOrThrow({ where: { id } });
     expect(o).toMatchObject({ payMethodId: 4, status: 'AWAITING_PAYMENT', version: v }); // версия не менялась — карточки не «протухают»
     expect(allTo(CLIENT)).toMatch(/Тверская, 1, с 10 до 19/);
-    expect(await db.orderEvent.count({ where: { orderId: id, comment: { startsWith: 'Реквизиты отправлены' } } })).toBe(2);
+    expect(await db.orderEvent.count({ where: { orderId: id, comment: { startsWith: 'Реквизиты отправлены' } } })).toBe(
+      2,
+    );
 
     // «Я оплатил» для способа без чека — сразу на проверку
     await click(CLIENT, `o:${id}:${v}:pd`);

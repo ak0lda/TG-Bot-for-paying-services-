@@ -6,7 +6,6 @@ import { handleOrderError } from '../errors.js';
 import { notifyOrderDone } from '../notify-done.js';
 import { MoneyParseError, formatMinor, formatRub, parseDecimalToMinor } from '../../domain/money.js';
 import { RATE_SCALE, formatRate, parseRate } from '../../domain/pricing.js';
-import { balanceOf } from '../../services/ledger-service.js';
 import { previewSettlement, type Attached, type OrderWithClient } from '../../services/order-service.js';
 import { RateUnavailableError } from '../../services/rates.js';
 import { o as ot } from '../../texts/orders.js';

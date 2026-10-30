@@ -3,7 +3,13 @@ import type { Logger } from '../logger.js';
 import { RATE_DECIMALS, RATE_SCALE, parseRate } from '../domain/pricing.js';
 import { parseDecimalToMinor } from '../domain/money.js';
 import { safeError } from '../logging/safe-error.js';
-import { DEFAULT_THRESHOLDS, assessRate, changeBp, type RateThresholds, type RateWarning } from '../domain/rate-check.js';
+import {
+  DEFAULT_THRESHOLDS,
+  assessRate,
+  changeBp,
+  type RateThresholds,
+  type RateWarning,
+} from '../domain/rate-check.js';
 import type { SettingsService } from './settings-service.js';
 
 export type RateSource = 'CBR' | 'MANUAL';
@@ -107,7 +113,10 @@ export class RatesService implements RatesProvider {
         scaled: rate.scaled,
         rateAt: rate.at,
         now: this.now(),
-        jump: jv?.from && jv.to && jv.at ? { fromScaled: BigInt(jv.from), toScaled: BigInt(jv.to), at: new Date(jv.at) } : null,
+        jump:
+          jv?.from && jv.to && jv.at
+            ? { fromScaled: BigInt(jv.from), toScaled: BigInt(jv.to), at: new Date(jv.at) }
+            : null,
         ackAt: ackRow && typeof ackRow.value === 'string' ? new Date(ackRow.value) : null,
         cbrScaled: rate.source === 'MANUAL' ? ((await this.loadCbr())?.rates.get(code) ?? null) : null,
       },
@@ -153,7 +162,11 @@ export class RatesService implements RatesProvider {
   async setManual(currency: string, input: string): Promise<bigint> {
     const scaled = parseRate(input);
     const key = manualKey(currency.toUpperCase());
-    await this.db.setting.upsert({ where: { key }, create: { key, value: scaled.toString() }, update: { value: scaled.toString() } });
+    await this.db.setting.upsert({
+      where: { key },
+      create: { key, value: scaled.toString() },
+      update: { value: scaled.toString() },
+    });
     return scaled;
   }
 
@@ -162,7 +175,10 @@ export class RatesService implements RatesProvider {
   }
 
   async listManual(): Promise<Array<{ currency: string; scaled: bigint }>> {
-    const rows = await this.db.setting.findMany({ where: { key: { startsWith: 'manualRate:' } }, orderBy: { key: 'asc' } });
+    const rows = await this.db.setting.findMany({
+      where: { key: { startsWith: 'manualRate:' } },
+      orderBy: { key: 'asc' },
+    });
     return rows.map((r) => ({ currency: r.key.slice('manualRate:'.length), scaled: BigInt(String(r.value)) }));
   }
 
@@ -207,19 +223,39 @@ export class RatesService implements RatesProvider {
         const value = { from: before.toString(), to: scaled.toString(), at: now.toISOString() };
         await this.db.setting.upsert({ where: { key }, create: { key, value }, update: { value } });
         if (relevant.has(cur)) {
-          this.onAnomaly?.({ currency: cur, warning: { kind: 'jump', fromScaled: before, toScaled: scaled, changeBp: changeBp(before, scaled), at: now } });
+          this.onAnomaly?.({
+            currency: cur,
+            warning: {
+              kind: 'jump',
+              fromScaled: before,
+              toScaled: scaled,
+              changeBp: changeBp(before, scaled),
+              at: now,
+            },
+          });
         }
       }
     }
-    const value = { at: now.toISOString(), rates: Object.fromEntries([...rates].map(([k, v]) => [k, v.toString()])) } satisfies Snapshot;
-    await this.db.setting.upsert({ where: { key: SNAPSHOT_KEY }, create: { key: SNAPSHOT_KEY, value }, update: { value } });
+    const value = {
+      at: now.toISOString(),
+      rates: Object.fromEntries([...rates].map(([k, v]) => [k, v.toString()])),
+    } satisfies Snapshot;
+    await this.db.setting.upsert({
+      where: { key: SNAPSHOT_KEY },
+      create: { key: SNAPSHOT_KEY, value },
+      update: { value },
+    });
   }
 
   /** Валюты, о которых стоит оповещать: основные + те, что встречались в заявках за 90 дней и в картах админа. */
   private async relevantCurrencies(): Promise<Set<string>> {
     const since = new Date(this.now().getTime() - 90 * 86_400_000);
     const [orders, cards] = await Promise.all([
-      this.db.order.findMany({ where: { createdAt: { gte: since }, currency: { not: null } }, distinct: ['currency'], select: { currency: true } }),
+      this.db.order.findMany({
+        where: { createdAt: { gte: since }, currency: { not: null } },
+        distinct: ['currency'],
+        select: { currency: true },
+      }),
       this.db.adminCard.findMany({ distinct: ['currency'], select: { currency: true } }),
     ]);
     return new Set([...DEFAULT_CURRENCIES, ...orders.map((o) => o.currency!), ...cards.map((c) => c.currency)]);

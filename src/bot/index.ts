@@ -51,7 +51,11 @@ export function createBot(deps: Deps, opts: BotOptions = {}): Bot<BotContext> {
   bot.catch(async (err) => {
     // Без содержимого апдейта: только технические данные.
     deps.log.error({ updateId: err.ctx.update.update_id, ...safeError(err.error) }, 'handler failed');
-    void deps.alerts.error(`handler:${safeError(err.error).err}`, 'Ошибка в обработчике бота (клиент увидел «что-то пошло не так»)', err.error);
+    void deps.alerts.error(
+      `handler:${safeError(err.error).err}`,
+      'Ошибка в обработчике бота (клиент увидел «что-то пошло не так»)',
+      err.error,
+    );
     await err.ctx.reply(t.internalError).catch(() => undefined);
   });
 

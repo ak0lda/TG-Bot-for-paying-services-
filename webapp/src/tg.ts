@@ -1,5 +1,12 @@
 import {
-  backButton, closeMiniApp, hapticFeedback, init, miniApp, openLink, retrieveRawInitData, themeParams,
+  backButton,
+  closeMiniApp,
+  hapticFeedback,
+  init,
+  miniApp,
+  openLink,
+  retrieveRawInitData,
+  themeParams,
 } from '@telegram-apps/sdk';
 
 /** Безопасно вызывает необязательную возможность SDK: в старых клиентах Telegram её может не быть. */
@@ -31,7 +38,7 @@ export function bootTelegram(): TgBoot {
 
 function doBoot(): TgBoot {
   // initData берём отдельно от init(): запуск параметров из URL не зависит от возможности слать события клиенту.
-  let initData: string | null = null;
+  let initData: string | null;
   try {
     initData = retrieveRawInitData() ?? null;
   } catch (e) {

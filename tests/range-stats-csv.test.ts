@@ -46,19 +46,44 @@ describe('parseRange', () => {
 
 describe('buildStats', () => {
   const o = (p: Partial<DoneOrder>): DoneOrder => ({
-    clientId: 1, clientName: 'Вася', service: 'Netflix', totalMinor: 100_000n, costMinor: 90_000n,
-    cardLabel: 'Visa ··4417', cardCurrency: 'USD', chargeInCardCurrencyMinor: 1000n, ...p,
+    clientId: 1,
+    clientName: 'Вася',
+    service: 'Netflix',
+    totalMinor: 100_000n,
+    costMinor: 90_000n,
+    cardLabel: 'Visa ··4417',
+    cardCurrency: 'USD',
+    chargeInCardCurrencyMinor: 1000n,
+    ...p,
   });
   it('aggregates turnover, cost, profit and groups sorted by turnover', () => {
     const s = buildStats([
       o({}),
       o({ service: ' netflix ', totalMinor: 50_000n, costMinor: 49_000n, chargeInCardCurrencyMinor: 500n }),
-      o({ clientId: 2, clientName: 'Петя', service: 'Steam', totalMinor: 300_000n, costMinor: 280_000n, cardLabel: 'MC ··1111', cardCurrency: 'EUR', chargeInCardCurrencyMinor: 3000n }),
+      o({
+        clientId: 2,
+        clientName: 'Петя',
+        service: 'Steam',
+        totalMinor: 300_000n,
+        costMinor: 280_000n,
+        cardLabel: 'MC ··1111',
+        cardCurrency: 'EUR',
+        chargeInCardCurrencyMinor: 3000n,
+      }),
     ]);
     expect(s).toMatchObject({ count: 3, turnoverMinor: 450_000n, costMinor: 419_000n, profitMinor: 31_000n });
-    expect(s.byClient.map((r) => [r.label, r.count, r.turnoverMinor])).toEqual([['#2 Петя', 1, 300_000n], ['#1 Вася', 2, 150_000n]]);
-    expect(s.byService.map((r) => [r.label, r.count])).toEqual([['Steam', 1], ['Netflix', 2]]);
-    expect(s.byCard.map((r) => [r.label, r.chargeMinor, r.rubMinor])).toEqual([['MC ··1111', 3000n, 280_000n], ['Visa ··4417', 1500n, 139_000n]]);
+    expect(s.byClient.map((r) => [r.label, r.count, r.turnoverMinor])).toEqual([
+      ['#2 Петя', 1, 300_000n],
+      ['#1 Вася', 2, 150_000n],
+    ]);
+    expect(s.byService.map((r) => [r.label, r.count])).toEqual([
+      ['Steam', 1],
+      ['Netflix', 2],
+    ]);
+    expect(s.byCard.map((r) => [r.label, r.chargeMinor, r.rubMinor])).toEqual([
+      ['MC ··1111', 3000n, 280_000n],
+      ['Visa ··4417', 1500n, 139_000n],
+    ]);
   });
   it('is empty-safe', () => {
     expect(buildStats([])).toMatchObject({ count: 0, turnoverMinor: 0n, profitMinor: 0n, byClient: [], byCard: [] });
@@ -80,7 +105,15 @@ describe('csv', () => {
     expect(csvCell(moneyCell(-150n))).toBe('-1.50');
   });
   it('formats rows, dates, nulls and money', () => {
-    expect(toCsv(['a', 'b'], [[1, null], [new Date('2026-01-02T03:04:05Z'), true]])).toBe('a,b\r\n1,\r\n2026-01-02T03:04:05.000Z,true\r\n');
+    expect(
+      toCsv(
+        ['a', 'b'],
+        [
+          [1, null],
+          [new Date('2026-01-02T03:04:05Z'), true],
+        ],
+      ),
+    ).toBe('a,b\r\n1,\r\n2026-01-02T03:04:05.000Z,true\r\n');
     expect(moneyCell(96_400n)).toBe('964.00');
     expect(moneyCell(5n)).toBe('0.05');
     expect(moneyCell(null)).toBeNull();

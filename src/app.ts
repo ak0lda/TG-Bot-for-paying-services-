@@ -19,7 +19,13 @@ import { TopUpService } from './services/topup-service.js';
 import { UserService } from './services/user-service.js';
 
 /** Сборка графа зависимостей (используется и в index.ts, и в e2e-тестах). */
-export function buildDeps(config: Config, db: Db, log: Logger, api: Api, opts: { fetchRatesXml?: () => Promise<string> } = {}): Deps {
+export function buildDeps(
+  config: Config,
+  db: Db,
+  log: Logger,
+  api: Api,
+  opts: { fetchRatesXml?: () => Promise<string> } = {},
+): Deps {
   const settings = new SettingsService(db);
   const domains = new TrustedDomainService(db);
   const rates = new RatesService(db, log, opts.fetchRatesXml, undefined, settings);
@@ -27,7 +33,9 @@ export function buildDeps(config: Config, db: Db, log: Logger, api: Api, opts: {
   const notifier = new Notifier(api, config, log);
   const alerts = new AlertService(notifier, log);
   // Резкий скачок курса ЦБ по значимой валюте — сразу сообщаем админу (не чаще раза в 6 часов на валюту).
-  rates.setAnomalyHandler((a) => void alerts.alert(`rate-jump:${a.currency}`, rw.alertJump(a.currency, a.warning), 6 * 3_600_000));
+  rates.setAnomalyHandler(
+    (a) => void alerts.alert(`rate-jump:${a.currency}`, rw.alertJump(a.currency, a.warning), 6 * 3_600_000),
+  );
   return {
     config,
     db,

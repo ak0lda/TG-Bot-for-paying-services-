@@ -35,7 +35,11 @@ export class ReportService {
 
     const done: DoneOrder[] = orders.map((o) => {
       const base = computeQuote({
-        amountMinor: o.amountMinor!, rateScaled: rateScaledOf(o), fxBufferBp: o.fxBufferBp ?? 0, markupBp: 0, fixedFeeMinor: 0n,
+        amountMinor: o.amountMinor!,
+        rateScaled: rateScaledOf(o),
+        fxBufferBp: o.fxBufferBp ?? 0,
+        markupBp: 0,
+        fixedFeeMinor: 0n,
       }).baseCostMinor;
       return {
         clientId: o.clientId,
@@ -49,7 +53,11 @@ export class ReportService {
       };
     });
 
-    const created = await this.db.order.groupBy({ by: ['status'], where: { createdAt: between(range) }, _count: { _all: true } });
+    const created = await this.db.order.groupBy({
+      by: ['status'],
+      where: { createdAt: between(range) },
+      _count: { _all: true },
+    });
     const ledger = await this.db.ledgerEntry.groupBy({
       by: ['type'],
       where: { type: { in: ['TOPUP', 'DEBT_REPAY'] }, createdAt: between(range) },
@@ -74,14 +82,34 @@ export class ReportService {
     });
     const doneAt = new Map<number, Date>();
     if (orders.length) {
-      const events = await this.db.orderEvent.findMany({ where: { orderId: { in: orders.map((o) => o.id) }, toStatus: 'DONE' } });
+      const events = await this.db.orderEvent.findMany({
+        where: { orderId: { in: orders.map((o) => o.id) }, toStatus: 'DONE' },
+      });
       for (const e of events) doneAt.set(e.orderId, e.createdAt);
     }
     const rows = orders.map((o) => [
-      o.id, o.createdAt, o.status, o.type, o.clientId, text(o.client.displayName), text(o.service), text(o.description),
-      o.urlDomain, moneyCell(o.amountMinor), o.currency, o.isSubscription, o.payMode, o.rate?.toFixed(8) ?? null,
-      moneyCell(o.totalMinor), text(o.card?.label), moneyCell(o.actualChargeMinor), o.actualCurrency, moneyCell(o.diffMinor),
-      doneAt.get(o.id) ?? null, text(o.rejectReason), text(o.comment),
+      o.id,
+      o.createdAt,
+      o.status,
+      o.type,
+      o.clientId,
+      text(o.client.displayName),
+      text(o.service),
+      text(o.description),
+      o.urlDomain,
+      moneyCell(o.amountMinor),
+      o.currency,
+      o.isSubscription,
+      o.payMode,
+      o.rate?.toFixed(8) ?? null,
+      moneyCell(o.totalMinor),
+      text(o.card?.label),
+      moneyCell(o.actualChargeMinor),
+      o.actualCurrency,
+      moneyCell(o.diffMinor),
+      doneAt.get(o.id) ?? null,
+      text(o.rejectReason),
+      text(o.comment),
     ]);
     return { csv: toCsv(csvCellsHeaderOrders, rows), rows: rows.length };
   }
@@ -94,7 +122,15 @@ export class ReportService {
       orderBy: { id: 'asc' },
     });
     const rows = entries.map((e) => [
-      e.id, e.createdAt, e.clientId, text(e.client.displayName), e.type, moneyCell(e.amountMinor), e.orderId, e.topUpId, text(e.comment),
+      e.id,
+      e.createdAt,
+      e.clientId,
+      text(e.client.displayName),
+      e.type,
+      moneyCell(e.amountMinor),
+      e.orderId,
+      e.topUpId,
+      text(e.comment),
     ]);
     return { csv: toCsv(csvCellsHeaderLedger, rows), rows: rows.length };
   }

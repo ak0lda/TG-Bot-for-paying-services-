@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { inLimits, pickAutoMethod, type AutoMethod } from '../src/domain/auto-requisites.js';
 
 const m = (p: Partial<AutoMethod> & { id: number }): AutoMethod => ({
-  title: `M${p.id}`, isActive: true, autoSend: true, instructions: 'реквизиты', minAmountMinor: null, maxAmountMinor: null, sortOrder: p.id, ...p,
+  title: `M${p.id}`,
+  isActive: true,
+  autoSend: true,
+  instructions: 'реквизиты',
+  minAmountMinor: null,
+  maxAmountMinor: null,
+  sortOrder: p.id,
+  ...p,
 });
 
 describe('inLimits', () => {
@@ -38,6 +45,9 @@ describe('pickAutoMethod', () => {
   });
 
   it('on overlap takes the first by sortOrder, then id', () => {
-    expect(pickAutoMethod([m({ id: 5, sortOrder: 2 }), m({ id: 6, sortOrder: 1 }), m({ id: 4, sortOrder: 1 })], 100n).method?.id).toBe(4);
+    expect(
+      pickAutoMethod([m({ id: 5, sortOrder: 2 }), m({ id: 6, sortOrder: 1 }), m({ id: 4, sortOrder: 1 })], 100n).method
+        ?.id,
+    ).toBe(4);
   });
 });

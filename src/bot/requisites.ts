@@ -13,14 +13,25 @@ import { o as ot } from '../texts/orders.js';
 // в БД, журналах и событиях он не сохраняется (в журнал пишется лишь «реквизиты отправлены: способ»).
 
 /** Карточка пополнения для админа: способы (кнопки «отправить реквизиты») + подтверждение/отказ. */
-export async function topUpAdminCard(deps: Deps, topUp: TopUpWithClient): Promise<{ text: string; kb: InlineKeyboard }> {
+export async function topUpAdminCard(
+  deps: Deps,
+  topUp: TopUpWithClient,
+): Promise<{ text: string; kb: InlineKeyboard }> {
   const debt = debtOf(await balanceOf(deps.db, topUp.clientId));
   const receipts = await deps.topups.receiptCount(topUp.id);
   const kb = new InlineKeyboard();
-  for (const m of await deps.catalog.listMethods(true)) kb.text(ot.requisitesBtn(m.title), `p:${topUp.id}:${m.id}`).row();
+  for (const m of await deps.catalog.listMethods(true))
+    kb.text(ot.requisitesBtn(m.title), `p:${topUp.id}:${m.id}`).row();
   kb.text(b.confirmTopUp, `t:${topUp.id}:ok`).row().text(b.rejectTopUp, `t:${topUp.id}:no`);
   return {
-    text: b.adminTopUp({ id: topUp.id, client: topUp.client, amount: topUp.amountMinor, method: topUp.method?.title ?? null, receipts, debt }),
+    text: b.adminTopUp({
+      id: topUp.id,
+      client: topUp.client,
+      amount: topUp.amountMinor,
+      method: topUp.method?.title ?? null,
+      receipts,
+      debt,
+    }),
     kb,
   };
 }
@@ -31,14 +42,28 @@ export async function notifyAdminTopUp(deps: Deps, topUp: TopUpWithClient, intro
 }
 
 /** Реквизиты по заявке -> клиенту, с кнопками заявки («Я оплатил», «Отменить»). */
-export async function deliverOrderRequisites(deps: Deps, order: OrderWithClient, method: PaymentMethod, text: string): Promise<void> {
+export async function deliverOrderRequisites(
+  deps: Deps,
+  order: OrderWithClient,
+  method: PaymentMethod,
+  text: string,
+): Promise<void> {
   const due = order.payDueMinor ?? order.totalMinor ?? 0n;
   const view = await deps.presenter.client(order);
-  await deps.notifier.toClient(order.client.telegramId, ot.requisitesMsg(formatRub(due), method.title, text, method.requiresReceipt), view.keyboard);
+  await deps.notifier.toClient(
+    order.client.telegramId,
+    ot.requisitesMsg(formatRub(due), method.title, text, method.requiresReceipt),
+    view.keyboard,
+  );
 }
 
 /** Реквизиты по пополнению -> клиенту, с кнопкой «Отправить чек» (если способ требует чек). */
-export async function deliverTopUpRequisites(deps: Deps, topUp: TopUpWithClient, method: PaymentMethod, text: string): Promise<void> {
+export async function deliverTopUpRequisites(
+  deps: Deps,
+  topUp: TopUpWithClient,
+  method: PaymentMethod,
+  text: string,
+): Promise<void> {
   const kb = method.requiresReceipt ? new InlineKeyboard().text(b.sendReceiptBtn, `b:rc:${topUp.id}`) : undefined;
   await deps.notifier.toClient(
     topUp.client.telegramId,

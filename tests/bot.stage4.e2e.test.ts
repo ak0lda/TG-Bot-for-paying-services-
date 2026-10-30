@@ -6,7 +6,8 @@ const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gift-code purge', () => {
   const h = url ? createHarness(url) : (undefined as never);
-  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } = h ?? ({} as typeof h);
+  const { db, deps, say, photo, click, lastTo, allTo, alerts, onboard, orderVersion, requisites } =
+    h ?? ({} as typeof h);
   afterAll(async () => db.$disconnect());
   beforeEach(() => h.reset());
 
@@ -77,8 +78,14 @@ describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gif
     await say(CLIENT, 'https://pay.paddle.com/checkout/fresh-link');
     const renewal = await db.order.findFirstOrThrow({ where: { renewedFromId: o.id } });
     expect(renewal).toMatchObject({
-      status: 'NEW', isSubscription: true, periodKind: 'MONTH', service: 'Netflix', amountMinor: 1000n,
-      currency: 'USD', url: 'https://pay.paddle.com/checkout/fresh-link', urlDomain: 'pay.paddle.com',
+      status: 'NEW',
+      isSubscription: true,
+      periodKind: 'MONTH',
+      service: 'Netflix',
+      amountMinor: 1000n,
+      currency: 'USD',
+      url: 'https://pay.paddle.com/checkout/fresh-link',
+      urlDomain: 'pay.paddle.com',
     });
     expect(allTo(ADMIN)).toMatch(/Продление подписки/);
 
@@ -122,7 +129,11 @@ describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gif
 
     const b = await newOrder({ period: 'MONTH', service: 'Bravo' });
     const doneB = await runToDone(b.id);
-    await deps.orders.renew(b.id, client.id, { url: 'https://pay.paddle.com/y', urlDomain: 'pay.paddle.com', payMode: 'PREPAY' });
+    await deps.orders.renew(b.id, client.id, {
+      url: 'https://pay.paddle.com/y',
+      urlDomain: 'pay.paddle.com',
+      payMode: 'PREPAY',
+    });
     expect(await sendSubscriptionReminders(deps, at(doneB, -2))).toBe(0); // продление уже есть
 
     const c = await newOrder({ period: 'YEAR', service: 'Charlie' });
@@ -196,7 +207,8 @@ describe.skipIf(!url)('stage 4 e2e: subscriptions, reminders, stats, export, gif
     await say(ADMIN, '/export all');
     const docs = h.sent.filter((s) => s.method === 'sendDocument');
     expect(docs).toHaveLength(2);
-    const body = (i: number) => Buffer.from((docs[i]!.payload.document as { fileData: Buffer }).fileData).toString('utf8');
+    const body = (i: number) =>
+      Buffer.from((docs[i]!.payload.document as { fileData: Buffer }).fileData).toString('utf8');
     const ordersCsv = body(0);
     const ledgerCsv = body(1);
     expect(ordersCsv.charCodeAt(0)).toBe(0xfeff); // BOM для Excel

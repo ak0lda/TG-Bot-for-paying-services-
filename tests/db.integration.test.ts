@@ -62,12 +62,21 @@ describe.skipIf(!url)('db integration', () => {
   it('ledger is append-only', async () => {
     const client = await db.user.findFirstOrThrow({ where: { role: 'CLIENT' } });
     const e = await db.ledgerEntry.create({ data: { clientId: client.id, type: 'TOPUP', amountMinor: 1000n } });
-    await expect(db.ledgerEntry.update({ where: { id: e.id }, data: { amountMinor: 1n } })).rejects.toThrow(/append-only/);
+    await expect(db.ledgerEntry.update({ where: { id: e.id }, data: { amountMinor: 1n } })).rejects.toThrow(
+      /append-only/,
+    );
     await expect(db.ledgerEntry.delete({ where: { id: e.id } })).rejects.toThrow(/append-only/);
   });
 
   it('concurrent admin clicks on the same order version: exactly one wins, ledger written once', async () => {
-    const rates = { getRate: async (currency: string) => ({ currency, scaled: 90n * RATE_SCALE, source: 'MANUAL' as const, at: new Date() }) };
+    const rates = {
+      getRate: async (currency: string) => ({
+        currency,
+        scaled: 90n * RATE_SCALE,
+        source: 'MANUAL' as const,
+        at: new Date(),
+      }),
+    };
     const settings = new SettingsService(db);
     const orders = new OrderService(db, rates, settings, makeKeyring(1, Buffer.alloc(32, 1)));
     const admin = await db.user.findFirstOrThrow({ where: { role: 'ADMIN' } });
@@ -75,13 +84,20 @@ describe.skipIf(!url)('db integration', () => {
     const before = await balanceOf(db, client.id);
 
     const o = await orders.create({
-      clientId: client.id, type: 'OTHER', service: 'Svc', amountMinor: 1000n, currency: 'USD', isSubscription: false,
+      clientId: client.id,
+      type: 'OTHER',
+      service: 'Svc',
+      amountMinor: 1000n,
+      currency: 'USD',
+      isSubscription: false,
     });
     const quoted = await orders.quote(o.id, o.version, ADMIN(admin.id));
     // PREPAY: клиент подтвердил и «оплатил» — доводим до PAYMENT_CHECK напрямую
     const confirmed = await orders.confirmQuote(o.id, quoted.version, client.id, null);
     // оплату можно отметить только после того, как админ прислал реквизиты (выбрал способ)
-    await expect(orders.markPaid(o.id, confirmed.order.version, client.id)).rejects.toBeInstanceOf(RequisitesNotSentError);
+    await expect(orders.markPaid(o.id, confirmed.order.version, client.id)).rejects.toBeInstanceOf(
+      RequisitesNotSentError,
+    );
     await orders.setPayMethod(o.id, confirmed.order.version, admin.id, 1, 'СБП');
     const paid = await orders.markPaid(o.id, confirmed.order.version, client.id);
 
@@ -106,7 +122,14 @@ describe.skipIf(!url)('db integration', () => {
     const client = await db.user.findFirstOrThrow({ where: { role: 'CLIENT' } });
     const mk = (code: string, ring = ringOld) =>
       db.order.create({
-        data: { clientId: client.id, type: 'GIFT_CARD', service: 'S', giftCodeEnc: new Uint8Array(encrypt(code, ring)), amountMinor: 100n, currency: 'USD' },
+        data: {
+          clientId: client.id,
+          type: 'GIFT_CARD',
+          service: 'S',
+          giftCodeEnc: new Uint8Array(encrypt(code, ring)),
+          amountMinor: 100n,
+          currency: 'USD',
+        },
       });
     const a = await mk('CODE-A');
     const b = await mk('CODE-B');
@@ -119,7 +142,10 @@ describe.skipIf(!url)('db integration', () => {
 
     const real = await rotateGiftCodes(db, ringNew);
     expect(real).toMatchObject({ rotated: 2, alreadyCurrent: 1, failed: [orphan.id] });
-    for (const [id, code] of [[a.id, 'CODE-A'], [b.id, 'CODE-B']] as const) {
+    for (const [id, code] of [
+      [a.id, 'CODE-A'],
+      [b.id, 'CODE-B'],
+    ] as const) {
       const enc = (await db.order.findUniqueOrThrow({ where: { id } })).giftCodeEnc!;
       expect(enc[2]).toBe(2);
       expect(decrypt(enc, makeKeyring(2, k2))).toBe(code); // читается одним новым ключом, старый больше не нужен

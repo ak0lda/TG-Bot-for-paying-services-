@@ -29,7 +29,11 @@ export async function startRenew(ctx: BotContext, deps: Deps, source: OrderWithC
   // Ссылка нужна, если исходная заявка была со ссылкой: старая ссылка одноразовая и уже недействительна.
   const needsUrl = source.type !== 'GIFT_CARD' && (source.type !== 'OTHER' || !!source.url);
   deps.wizards.cancel(ctx.from!.id);
-  await deps.wizards.start(ctx, renewWizard(deps), { sourceId: source.id, clientId: source.clientId, needsUrl } satisfies RenewData);
+  await deps.wizards.start(ctx, renewWizard(deps), {
+    sourceId: source.id,
+    clientId: source.clientId,
+    needsUrl,
+  } satisfies RenewData);
 }
 
 function renewWizard(deps: Deps): WizardDef<RenewData> {

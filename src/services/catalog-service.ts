@@ -22,7 +22,12 @@ export class CatalogService {
   }
   updateMethod(
     id: number,
-    data: Partial<Pick<PaymentMethod, 'title' | 'instructions' | 'requiresReceipt' | 'isActive' | 'autoSend' | 'minAmountMinor' | 'maxAmountMinor'>>,
+    data: Partial<
+      Pick<
+        PaymentMethod,
+        'title' | 'instructions' | 'requiresReceipt' | 'isActive' | 'autoSend' | 'minAmountMinor' | 'maxAmountMinor'
+      >
+    >,
   ) {
     return this.db.paymentMethod.update({ where: { id }, data });
   }

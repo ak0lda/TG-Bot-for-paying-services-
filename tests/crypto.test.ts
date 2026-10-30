@@ -1,6 +1,14 @@
 import { createCipheriv, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { LEGACY_KEY_ID, UnknownKeyError, decrypt, encrypt, makeKeyring, needsRotation, parseOldKeys } from '../src/services/crypto.js';
+import {
+  LEGACY_KEY_ID,
+  UnknownKeyError,
+  decrypt,
+  encrypt,
+  makeKeyring,
+  needsRotation,
+  parseOldKeys,
+} from '../src/services/crypto.js';
 
 const k1 = randomBytes(32);
 const k2 = randomBytes(32);

@@ -37,8 +37,16 @@ export function adminFinanceHandlers(deps: Deps): Composer<BotContext> {
     creditors.sort((x, y) => (x[0] > y[0] ? -1 : 1));
     await ctx.reply(
       b.debtsTitle +
-        b.debtsSection('Должны мне', debtors.map((x) => x[1]), debtTotal) +
-        b.debtsSection('Переплаты / остатки на балансах (я должен клиентам)', creditors.map((x) => x[1]), creditTotal),
+        b.debtsSection(
+          'Должны мне',
+          debtors.map((x) => x[1]),
+          debtTotal,
+        ) +
+        b.debtsSection(
+          'Переплаты / остатки на балансах (я должен клиентам)',
+          creditors.map((x) => x[1]),
+          creditTotal,
+        ),
       html,
     );
   });
@@ -48,7 +56,12 @@ export function adminFinanceHandlers(deps: Deps): Composer<BotContext> {
     const user = id === null ? null : await deps.users.getClient(id);
     if (!user) return void (await ctx.reply(t.clientNotFound));
     await ctx.reply(
-      b.clientCard(user, await balanceOf(deps.db, user.id), await ledgerHistory(deps.db, user.id, 10), deps.config.TIMEZONE),
+      b.clientCard(
+        user,
+        await balanceOf(deps.db, user.id),
+        await ledgerHistory(deps.db, user.id, 10),
+        deps.config.TIMEZONE,
+      ),
       html,
     );
   });

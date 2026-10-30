@@ -40,7 +40,13 @@ export class TopUpService {
     const t = await this.db.topUp.findFirst({ where: { id, clientId, status: 'PENDING' } });
     if (!t) throw new TopUpNotPendingError();
     await this.db.attachment.create({
-      data: { topUpId: id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
+      data: {
+        topUpId: id,
+        kind: 'RECEIPT',
+        tgFileId: receipt.fileId,
+        tgFileType: receipt.fileType,
+        uploadedById: clientId,
+      },
     });
     return (await this.get(id))!;
   }
@@ -62,8 +68,12 @@ export class TopUpService {
       for (const e of topUpEntries(topUp.amountMinor, before)) {
         await tx.ledgerEntry.create({
           data: {
-            clientId: topUp.clientId, topUpId: id, type: e.type, amountMinor: e.amountMinor,
-            comment: e.comment ?? null, createdById: adminId,
+            clientId: topUp.clientId,
+            topUpId: id,
+            type: e.type,
+            amountMinor: e.amountMinor,
+            comment: e.comment ?? null,
+            createdById: adminId,
           },
         });
       }

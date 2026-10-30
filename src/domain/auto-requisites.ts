@@ -18,7 +18,8 @@ export interface AutoPick<T extends AutoMethod> {
 }
 
 export const inLimits = (m: Pick<AutoMethod, 'minAmountMinor' | 'maxAmountMinor'>, amountMinor: bigint): boolean =>
-  (m.minAmountMinor === null || amountMinor >= m.minAmountMinor) && (m.maxAmountMinor === null || amountMinor <= m.maxAmountMinor);
+  (m.minAmountMinor === null || amountMinor >= m.minAmountMinor) &&
+  (m.maxAmountMinor === null || amountMinor <= m.maxAmountMinor);
 
 /**
  * Автовыбор способа по сумме: активный, с включённой автоотправкой, с непустым готовым текстом и границами,

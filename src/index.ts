@@ -84,7 +84,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((e: unknown) => {
-  // eslint-disable-next-line no-console
   console.error(e instanceof Error ? mask(e.message) : 'startup failed');
   process.exit(1);
 });

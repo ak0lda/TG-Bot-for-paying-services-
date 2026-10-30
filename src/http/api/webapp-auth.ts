@@ -19,7 +19,12 @@ const MAX_FUTURE_SKEW_SEC = 300;
  * где data_check_string — все поля кроме `hash`, отсортированные по ключу, `key=value` через «\n».
  * Дополнительно: ограничение по возрасту auth_date (защита от повторного использования старой подписи).
  */
-export function validateInitData(raw: string, botToken: string, now: Date = new Date(), maxAgeSec = 86_400): InitDataResult {
+export function validateInitData(
+  raw: string,
+  botToken: string,
+  now: Date = new Date(),
+  maxAgeSec = 86_400,
+): InitDataResult {
   if (!raw || raw.length > 8_192) return { ok: false, reason: 'missing' };
   const params = new URLSearchParams(raw);
   const hash = params.get('hash');
@@ -43,7 +48,8 @@ export function validateInitData(raw: string, botToken: string, now: Date = new 
 
   try {
     const user = JSON.parse(params.get('user') ?? '') as TgWebAppUser;
-    if (!Number.isSafeInteger(user?.id) || user.id <= 0 || typeof user.first_name !== 'string') throw new Error('bad user');
+    if (!Number.isSafeInteger(user?.id) || user.id <= 0 || typeof user.first_name !== 'string')
+      throw new Error('bad user');
     return { ok: true, user, authDate: new Date(authSec * 1000) };
   } catch {
     return { ok: false, reason: 'no_user' };

@@ -46,11 +46,27 @@ async function main() {
     if (process.env.DEBUG_BROWSER) page.on('console', (m) => console.log(`[${name}] ${m.type()}: ${m.text()}`));
     page.on('pageerror', (e) => problems.push(`[${name}] pageerror: ${e.message}`));
     // 4xx на проверках валидации ожидаемы; браузер пишет их в консоль как «Failed to load resource».
-    page.on('console', (m) => m.type() === 'error' && !m.text().startsWith('Failed to load resource') && problems.push(`[${name}] console: ${m.text()}`));
+    page.on(
+      'console',
+      (m) =>
+        m.type() === 'error' &&
+        !m.text().startsWith('Failed to load resource') &&
+        problems.push(`[${name}] console: ${m.text()}`),
+    );
     page.on('response', (r) => r.status() >= 500 && problems.push(`[${name}] HTTP ${r.status()} ${r.url()}`));
     const initData = buildSignedInitData({ id: tgId, first_name: name }, BOT_TOKEN);
-    const theme = encodeURIComponent(JSON.stringify({ bg_color: '#ffffff', text_color: '#1c1c1e', button_color: '#2481cc', button_text_color: '#ffffff', secondary_bg_color: '#f2f2f7' }));
-    await page.goto(`http://127.0.0.1:${PORT}/app/#tgWebAppData=${encodeURIComponent(initData)}&tgWebAppVersion=8.0&tgWebAppPlatform=android&tgWebAppThemeParams=${theme}`);
+    const theme = encodeURIComponent(
+      JSON.stringify({
+        bg_color: '#ffffff',
+        text_color: '#1c1c1e',
+        button_color: '#2481cc',
+        button_text_color: '#ffffff',
+        secondary_bg_color: '#f2f2f7',
+      }),
+    );
+    await page.goto(
+      `http://127.0.0.1:${PORT}/app/#tgWebAppData=${encodeURIComponent(initData)}&tgWebAppVersion=8.0&tgWebAppPlatform=android&tgWebAppThemeParams=${theme}`,
+    );
     return page;
   };
   const shot = (p: Page, n: string) => p.screenshot({ path: `${shots}/${n}.png`, fullPage: true });
@@ -157,11 +173,11 @@ async function main() {
 
   // ── Защита: клиентский initData не открывает админку ────────
   // Код как строка: tsx добавляет в функции хелпер __name, которого нет в браузере.
-  const status = await c.evaluate(`(async () => {
+  const status = (await c.evaluate(`(async () => {
     const raw = decodeURIComponent(location.hash.split('tgWebAppData=')[1].split('&tgWebApp')[0]);
     const r = await fetch('/api/admin/orders', { headers: { Authorization: 'tma ' + raw } });
     return r.status;
-  })()`) as number;
+  })()`)) as number;
   ok(status === 403, `клиент не получает /api/admin/* (HTTP ${status})`);
 
   await browser.close();

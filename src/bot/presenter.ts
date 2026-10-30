@@ -22,7 +22,15 @@ export function formatAge(ms: number): string {
   return `${Math.floor(h / 24)} д ${h % 24} ч`;
 }
 
-const ACTIVE_FOR_STALE = ['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS', 'EXPIRED', 'LINK_INVALID'];
+const ACTIVE_FOR_STALE = [
+  'NEW',
+  'QUOTED',
+  'AWAITING_PAYMENT',
+  'PAYMENT_CHECK',
+  'IN_PROGRESS',
+  'EXPIRED',
+  'LINK_INVALID',
+];
 
 export class Presenter {
   constructor(
@@ -32,13 +40,19 @@ export class Presenter {
 
   private fmtTime(d: Date): string {
     return new Intl.DateTimeFormat('ru-RU', {
-      timeZone: this.deps.config.TIMEZONE, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      timeZone: this.deps.config.TIMEZONE,
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
     }).format(d);
   }
 
   private amountLine(o: Order): string {
     const amount = o.amountMinor != null ? `${formatMinor(o.amountMinor)} ${o.currency ?? ''}` : '—';
-    return o.isSubscription ? `${amount} · подписка (${periodLabel(o.periodKind, o.periodDays)})` : `${amount} · разовая`;
+    return o.isSubscription
+      ? `${amount} · подписка (${periodLabel(o.periodKind, o.periodDays)})`
+      : `${amount} · разовая`;
   }
 
   private totalLine(o: Order): string | null {
@@ -58,7 +72,11 @@ export class Presenter {
     const total = this.totalLine(o);
     if (total && !['CANCELED', 'REJECTED'].includes(o.status)) lines.push(`К оплате: <b>${total}</b>`);
     if (o.payMode !== 'PREPAY') lines.push(`Способ оплаты: ${ot.payModeShort[o.payMode]}`);
-    if (o.payMode === 'BALANCE' && o.reservedMinor > 0n && ['AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS'].includes(o.status)) {
+    if (
+      o.payMode === 'BALANCE' &&
+      o.reservedMinor > 0n &&
+      ['AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS'].includes(o.status)
+    ) {
       lines.push(`С баланса зарезервировано: ${formatRub(o.reservedMinor)}`);
     }
     if (['QUOTED', 'AWAITING_PAYMENT'].includes(o.status) && o.quoteExpiresAt) {
@@ -71,7 +89,13 @@ export class Presenter {
       } else {
         const m = await this.deps.catalog.getMethod(o.payMethodId);
         if (m && due != null) {
-          lines.push('', `💳 К оплате: <b>${formatRub(due)}</b>`, `Способ: <b>${escapeHtml(m.title)}</b>`, ot.requisitesInChat, 'После перевода нажмите «Я оплатил».');
+          lines.push(
+            '',
+            `💳 К оплате: <b>${formatRub(due)}</b>`,
+            `Способ: <b>${escapeHtml(m.title)}</b>`,
+            ot.requisitesInChat,
+            'После перевода нажмите «Я оплатил».',
+          );
         }
       }
     }
@@ -122,7 +146,8 @@ export class Presenter {
     if (o.payMode === 'BALANCE' && o.status !== 'NEW' && o.status !== 'QUOTED') {
       payLine += `, с баланса ${formatRub(o.reservedMinor)}${o.payDueMinor ? `, переводом ${formatRub(o.payDueMinor)}` : ''}`;
     }
-    if (o.payMode === 'PAY_LATER') payLine += ` (клиент платит после выполнения; лимит ${formatRub(c.payLaterLimitMinor)})`;
+    if (o.payMode === 'PAY_LATER')
+      payLine += ` (клиент платит после выполнения; лимит ${formatRub(c.payLaterLimitMinor)})`;
     lines.push(payLine);
     const total = this.totalLine(o);
     if (total) lines.push(`К оплате клиентом: <b>${total}</b>`);
@@ -144,7 +169,9 @@ export class Presenter {
     lines.push(`Статус: ${STATUS_LABEL[o.status]}`);
     if (o.status === 'AWAITING_PAYMENT') {
       const m = o.payMethodId ? await this.deps.catalog.getMethod(o.payMethodId) : null;
-      lines.push(m ? `📤 Реквизиты отправлены: ${escapeHtml(m.title)}` : '⏳ Реквизиты клиенту не отправлены — выбери способ');
+      lines.push(
+        m ? `📤 Реквизиты отправлены: ${escapeHtml(m.title)}` : '⏳ Реквизиты клиенту не отправлены — выбери способ',
+      );
     }
     if (o.comment) lines.push(`Комментарий: ${escapeHtml(o.comment)}`);
     if (o.rejectReason) lines.push(`Причина отклонения: ${escapeHtml(o.rejectReason)}`);
@@ -157,7 +184,8 @@ export class Presenter {
     switch (o.status) {
       case 'AWAITING_PAYMENT': {
         // Способ перевода выбирает админ: кнопка на каждый активный способ (повторное нажатие — отправить реквизиты снова).
-        for (const m of await this.deps.catalog.listMethods(true)) kb.text(ot.requisitesBtn(m.title), `r:${o.id}:${o.version}:${m.id}`).row();
+        for (const m of await this.deps.catalog.listMethods(true))
+          kb.text(ot.requisitesBtn(m.title), `r:${o.id}:${o.version}:${m.id}`).row();
         break;
       }
       case 'NEW':
@@ -195,7 +223,10 @@ export class Presenter {
     const kb = new InlineKeyboard();
     for (const o of orders) {
       const who = withClient ? ` · #${(o as OrderWithClient).client?.id ?? ''}` : '';
-      kb.text(`${STATUS_EMOJI[o.status]} #${o.id} · ${o.service.slice(0, 24)}${who}`, orderCb(o.id, o.version, 'v')).row();
+      kb.text(
+        `${STATUS_EMOJI[o.status]} #${o.id} · ${o.service.slice(0, 24)}${who}`,
+        orderCb(o.id, o.version, 'v'),
+      ).row();
     }
     return kb;
   }

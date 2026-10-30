@@ -3,9 +3,7 @@ import type { Db } from '../db/client.js';
 import { generateInviteCode, isValidInviteCodeFormat } from '../domain/invite-code.js';
 import type { TgIdentity } from './user-service.js';
 
-export type RedeemResult =
-  | { ok: true; user: User; invite: Invite }
-  | { ok: false; reason: 'invalid' };
+export type RedeemResult = { ok: true; user: User; invite: Invite } | { ok: false; reason: 'invalid' };
 
 class InviteRejected extends Error {}
 

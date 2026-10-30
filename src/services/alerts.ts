@@ -25,7 +25,8 @@ export class AlertService {
     const prev = this.lastSent.get(key);
     if (prev !== undefined && t - prev < cooldownMs) return false;
     this.lastSent.set(key, t);
-    if (this.lastSent.size > 500) for (const [k, v] of this.lastSent) if (t - v > 24 * 3_600_000) this.lastSent.delete(k);
+    if (this.lastSent.size > 500)
+      for (const [k, v] of this.lastSent) if (t - v > 24 * 3_600_000) this.lastSent.delete(k);
     try {
       return await this.notifier.toAdmin(text);
     } catch (e) {

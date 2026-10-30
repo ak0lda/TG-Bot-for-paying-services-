@@ -26,12 +26,22 @@ describe('AlertService', () => {
   it('error() describes the error safely (no query values, no tokens) and delivery failures never throw', async () => {
     const sent: string[] = [];
     const svc = new AlertService({ toAdmin: async (m) => (sent.push(m), true) }, log);
-    const e = Object.assign(new Error('Invalid `prisma.order.create()`: { service: "СЕКРЕТ" }'), { name: 'PrismaClientKnownRequestError', code: 'P2002' });
+    const e = Object.assign(new Error('Invalid `prisma.order.create()`: { service: "СЕКРЕТ" }'), {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+    });
     await svc.error('k', 'Ошибка', e, 'маршрут: GET /x');
     expect(sent[0]).toContain('PrismaClientKnownRequestError P2002');
     expect(sent[0]).not.toContain('СЕКРЕТ');
 
-    const broken = new AlertService({ toAdmin: async () => { throw new Error('telegram down'); } }, log);
+    const broken = new AlertService(
+      {
+        toAdmin: async () => {
+          throw new Error('telegram down');
+        },
+      },
+      log,
+    );
     await expect(broken.alert('x', 'y')).resolves.toBe(false);
   });
 });
@@ -46,16 +56,34 @@ describe('readBackupStatus', () => {
   };
 
   it('ok / stale / failed / missing', async () => {
-    expect(await readBackupStatus(dir({ '.last_success': `${sec(5)} bot-1.sql.gz.age` }), now, 36)).toEqual({ state: 'ok', ageHours: 5 });
-    expect(await readBackupStatus(dir({ '.last_success': `${sec(40)}` }), now, 36)).toEqual({ state: 'stale', ageHours: 40 });
+    expect(await readBackupStatus(dir({ '.last_success': `${sec(5)} bot-1.sql.gz.age` }), now, 36)).toEqual({
+      state: 'ok',
+      ageHours: 5,
+    });
+    expect(await readBackupStatus(dir({ '.last_success': `${sec(40)}` }), now, 36)).toEqual({
+      state: 'stale',
+      ageHours: 40,
+    });
     expect(await readBackupStatus(dir({}), now, 36)).toEqual({ state: 'missing' });
     expect(await readBackupStatus('/definitely/not/here', now, 36)).toEqual({ state: 'missing' });
   });
 
   it('a newer failure wins over an older success; a newer success clears an old failure', async () => {
-    const failed = await readBackupStatus(dir({ '.last_success': `${sec(30)}`, '.last_failure': `${sec(2)} pg_dump: connection refused` }), now, 36);
+    const failed = await readBackupStatus(
+      dir({ '.last_success': `${sec(30)}`, '.last_failure': `${sec(2)} pg_dump: connection refused` }),
+      now,
+      36,
+    );
     expect(failed).toEqual({ state: 'failed', ageHours: 2, reason: 'pg_dump: connection refused' });
-    expect((await readBackupStatus(dir({ '.last_success': `${sec(1)}`, '.last_failure': `${sec(20)} old problem` }), now, 36)).state).toBe('ok');
+    expect(
+      (
+        await readBackupStatus(
+          dir({ '.last_success': `${sec(1)}`, '.last_failure': `${sec(20)} old problem` }),
+          now,
+          36,
+        )
+      ).state,
+    ).toBe('ok');
     expect((await readBackupStatus(dir({ '.last_failure': `${sec(1)} disk full` }), now, 36)).state).toBe('failed');
   });
 

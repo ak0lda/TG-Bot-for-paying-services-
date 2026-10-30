@@ -24,7 +24,9 @@ describe('loadConfig', () => {
     const cfg = loadConfig({ ...base, ENCRYPTION_KEY_ID: '2', ENCRYPTION_KEYS_OLD: `1:${old}` });
     expect(cfg.keyring.currentId).toBe(2);
     expect([...cfg.keyring.keys.keys()].sort()).toEqual([1, 2]);
-    expect(() => loadConfig({ ...base, ENCRYPTION_KEY_ID: '1', ENCRYPTION_KEYS_OLD: `1:${old}` })).toThrow(/both current and old/);
+    expect(() => loadConfig({ ...base, ENCRYPTION_KEY_ID: '1', ENCRYPTION_KEYS_OLD: `1:${old}` })).toThrow(
+      /both current and old/,
+    );
     expect(() => loadConfig({ ...base, ENCRYPTION_KEYS_OLD: 'nonsense' })).toThrow(/ENCRYPTION_KEYS_OLD/);
     expect(() => loadConfig({ ...base, ENCRYPTION_KEY_ID: '999' })).toThrow(/ENCRYPTION_KEY_ID/);
   });

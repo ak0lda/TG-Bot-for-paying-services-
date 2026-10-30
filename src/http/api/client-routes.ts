@@ -50,7 +50,11 @@ export function clientRoutes(deps: Deps) {
           ...base,
           staleLinkHours: settings.staleLinkHours,
           cards: cards.map((c) => ({ id: c.id, label: c.label, currency: c.currency })),
-          methods: (await deps.catalog.listMethods(true)).map((m) => ({ id: m.id, title: m.title, hasSavedText: m.instructions.length > 0 })),
+          methods: (await deps.catalog.listMethods(true)).map((m) => ({
+            id: m.id,
+            title: m.title,
+            hasSavedText: m.instructions.length > 0,
+          })),
         };
       }
       return {
@@ -83,7 +87,10 @@ export function clientRoutes(deps: Deps) {
       const res = await deps.orders.confirmQuote(order.id, version, req.actor.id, null);
       if (!res.expired) {
         if (res.order.status === 'IN_PROGRESS') {
-          await deps.presenter.notifyAdmin(res.order, ot.adminInProgress(res.order.id, ot.payModeShort[res.order.payMode]));
+          await deps.presenter.notifyAdmin(
+            res.order,
+            ot.adminInProgress(res.order.id, ot.payModeShort[res.order.payMode]),
+          );
         } else {
           const due = formatRub(res.order.payDueMinor ?? res.order.totalMinor ?? 0n);
           const auto = await autoSendOrderRequisites(deps, res.order);
@@ -91,7 +98,10 @@ export function clientRoutes(deps: Deps) {
             res.order = auto.order;
             await deps.presenter.notifyAdmin(auto.order, ot.adminAutoRequisites(auto.order.id, auto.method.title, due));
           } else {
-            await deps.presenter.notifyAdmin(res.order, auto.hadCandidates ? ot.adminAutoMiss(res.order.id, due) : ot.adminNeedRequisites(res.order.id));
+            await deps.presenter.notifyAdmin(
+              res.order,
+              auto.hadCandidates ? ot.adminAutoMiss(res.order.id, due) : ot.adminNeedRequisites(res.order.id),
+            );
           }
         }
       }
@@ -105,7 +115,11 @@ export function clientRoutes(deps: Deps) {
       // Скриншот чека в Telegram-боте хранится как file_id; из Mini App его получить нельзя — чек отправляется в чате.
       if (!method) throw new ApiError(409, 'requisites_not_sent', ot.noRequisitesYet);
       if (method.requiresReceipt) {
-        throw new ApiError(409, 'receipt_required', 'Для этого способа нужен чек — отправь его в чате с ботом (кнопка «Я оплатил»).');
+        throw new ApiError(
+          409,
+          'receipt_required',
+          'Для этого способа нужен чек — отправь его в чате с ботом (кнопка «Я оплатил»).',
+        );
       }
       const updated = await deps.orders.markPaid(order.id, version, req.actor.id);
       await deps.presenter.notifyAdmin(updated, ot.adminPaid(updated.id));
@@ -141,7 +155,12 @@ export function clientRoutes(deps: Deps) {
     });
 
     app.post('/orders/:id/renew', async (req, reply) => {
-      const body = z.object({ url: z.string().trim().max(2048).optional(), payMode: z.enum(['PREPAY', 'BALANCE', 'PAY_LATER']).default('PREPAY') }).parse(req.body);
+      const body = z
+        .object({
+          url: z.string().trim().max(2048).optional(),
+          payMode: z.enum(['PREPAY', 'BALANCE', 'PAY_LATER']).default('PREPAY'),
+        })
+        .parse(req.body);
       const src = await ownOrder(req);
       const needsUrl = src.type !== 'GIFT_CARD' && (src.type !== 'OTHER' || !!src.url);
       let url: string | null = null;

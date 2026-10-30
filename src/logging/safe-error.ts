@@ -32,11 +32,17 @@ export function codeLocation(stack: string | undefined): string | undefined {
 
 export function safeError(e: unknown): SafeError {
   if (e instanceof GrammyError) {
-    return { err: `GrammyError ${e.error_code} ${e.method}: ${firstLine(e.description).slice(0, 80)}`, code: String(e.error_code) };
+    return {
+      err: `GrammyError ${e.error_code} ${e.method}: ${firstLine(e.description).slice(0, 80)}`,
+      code: String(e.error_code),
+    };
   }
   if (e instanceof HttpError) {
     const cause = (e.error as { code?: unknown } | undefined)?.code;
-    return { err: `HttpError (network)${typeof cause === 'string' ? ` ${cause}` : ''}`, ...(typeof cause === 'string' ? { code: cause } : {}) };
+    return {
+      err: `HttpError (network)${typeof cause === 'string' ? ` ${cause}` : ''}`,
+      ...(typeof cause === 'string' ? { code: cause } : {}),
+    };
   }
   if (e instanceof Error) {
     const code = (e as { code?: unknown }).code;

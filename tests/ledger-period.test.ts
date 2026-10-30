@@ -44,7 +44,11 @@ describe('ledger: reserves, debt, top-ups', () => {
   it('BALANCE: reserve is released then charged — net effect is just the charge + diff', () => {
     const total = 50_000n;
     const entries = [{ amountMinor: -total }, ...doneEntries(total, 300n, { reservedMinor: total })]; // reserve + done
-    expect(doneEntries(total, 300n, { reservedMinor: total }).map((e) => e.type)).toEqual(['ORDER_RELEASE', 'ORDER_CHARGE', 'DIFF_ADJUST']);
+    expect(doneEntries(total, 300n, { reservedMinor: total }).map((e) => e.type)).toEqual([
+      'ORDER_RELEASE',
+      'ORDER_CHARGE',
+      'DIFF_ADJUST',
+    ]);
     expect(sumEntries(entries)).toBe(-total + 300n);
   });
 
@@ -71,7 +75,10 @@ describe('ledger: reserves, debt, top-ups', () => {
 
   it('top-up repays debt first, remainder goes to balance', () => {
     expect(topUpEntries(1000n, 0n).map((e) => [e.type, e.amountMinor])).toEqual([['TOPUP', 1000n]]);
-    expect(topUpEntries(1000n, -300n).map((e) => [e.type, e.amountMinor])).toEqual([['DEBT_REPAY', 300n], ['TOPUP', 700n]]);
+    expect(topUpEntries(1000n, -300n).map((e) => [e.type, e.amountMinor])).toEqual([
+      ['DEBT_REPAY', 300n],
+      ['TOPUP', 700n],
+    ]);
     expect(topUpEntries(200n, -300n).map((e) => [e.type, e.amountMinor])).toEqual([['DEBT_REPAY', 200n]]);
     expect(topUpEntries(300n, -300n).map((e) => e.type)).toEqual(['DEBT_REPAY']);
     expect(() => topUpEntries(0n, 0n)).toThrow(RangeError);

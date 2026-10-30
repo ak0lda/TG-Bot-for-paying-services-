@@ -22,7 +22,12 @@ interface ReqData {
 }
 
 /** Админ выбрал способ для заявки -> просим прислать реквизиты. */
-export async function startOrderRequisites(ctx: BotContext, deps: Deps, order: OrderWithClient, method: PaymentMethod): Promise<void> {
+export async function startOrderRequisites(
+  ctx: BotContext,
+  deps: Deps,
+  order: OrderWithClient,
+  method: PaymentMethod,
+): Promise<void> {
   deps.wizards.cancel(ctx.from!.id);
   await deps.wizards.start(ctx, requisitesWizard(deps), {
     target: { kind: 'order', id: order.id, version: order.version },
@@ -32,7 +37,12 @@ export async function startOrderRequisites(ctx: BotContext, deps: Deps, order: O
   });
 }
 
-export async function startTopUpRequisites(ctx: BotContext, deps: Deps, topUp: TopUpWithClient, method: PaymentMethod): Promise<void> {
+export async function startTopUpRequisites(
+  ctx: BotContext,
+  deps: Deps,
+  topUp: TopUpWithClient,
+  method: PaymentMethod,
+): Promise<void> {
   deps.wizards.cancel(ctx.from!.id);
   await deps.wizards.start(ctx, requisitesWizard(deps), {
     target: { kind: 'topup', id: topUp.id },
@@ -73,12 +83,18 @@ function requisitesWizard(deps: Deps): WizardDef<ReqData> {
           const order = await deps.orders.setPayMethod(target.id, target.version, d.adminId, method.id, method.title);
           await deliverOrderRequisites(deps, order, method, d.text!);
           const view = await deps.presenter.admin(order);
-          await ctx.reply(`${ot.requisitesSent(order.id, method.title)}\n\n${view.text}`, { ...html, reply_markup: view.keyboard });
+          await ctx.reply(`${ot.requisitesSent(order.id, method.title)}\n\n${view.text}`, {
+            ...html,
+            reply_markup: view.keyboard,
+          });
         } else {
           const topUp = await deps.topups.setMethod(target.id, method.id);
           await deliverTopUpRequisites(deps, topUp, method, d.text!);
           const card = await topUpAdminCard(deps, topUp);
-          await ctx.reply(`${b.topUpRequisitesSent(topUp.id, method.title)}\n\n${card.text}`, { ...html, reply_markup: card.kb });
+          await ctx.reply(`${b.topUpRequisitesSent(topUp.id, method.title)}\n\n${card.text}`, {
+            ...html,
+            reply_markup: card.kb,
+          });
         }
       } catch (e) {
         if (e instanceof TopUpNotPendingError) return void (await ctx.reply(b.topUpAlready));

@@ -3,19 +3,23 @@ import type { BotContext, Deps } from '../context.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { normalizeDomain } from '../../domain/domains.js';
-import {
-  SettingParseError,
-  formatSettingValue,
-  isSettingKey,
-  parseSettingInput,
-} from '../../domain/settings.js';
+import { SettingParseError, formatSettingValue, isSettingKey, parseSettingInput } from '../../domain/settings.js';
 import { balancesByClient } from '../../services/ledger-service.js';
 import { t } from '../../texts/ru.js';
 
 const html = { parse_mode: 'HTML' as const };
 
 const ADMIN_COMMANDS = [
-  'invite', 'invites', 'clients', 'block', 'unblock', 'paylater', 'settings', 'domains', 'domain_add', 'domain_del',
+  'invite',
+  'invites',
+  'clients',
+  'block',
+  'unblock',
+  'paylater',
+  'settings',
+  'domains',
+  'domain_add',
+  'domain_del',
 ];
 
 export function adminHandlers(deps: Deps): Composer<BotContext> {
@@ -46,7 +50,10 @@ export function adminHandlers(deps: Deps): Composer<BotContext> {
   c.command('clients', async (ctx) => {
     const list = await deps.users.listClients();
     const balances = await balancesByClient(deps.db);
-    await ctx.reply(list.length ? list.map((u) => t.clientLine(u, balances.get(u.id) ?? 0n)).join('\n') : t.clientsEmpty, html);
+    await ctx.reply(
+      list.length ? list.map((u) => t.clientLine(u, balances.get(u.id) ?? 0n)).join('\n') : t.clientsEmpty,
+      html,
+    );
   });
 
   const parseId = (s: string): number | null => (/^\d{1,9}$/.test(s) ? Number(s) : null);

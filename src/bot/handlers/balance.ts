@@ -61,7 +61,10 @@ export function balanceHandlers(deps: Deps): Composer<BotContext> {
       await ctx.answerCallbackQuery();
       await strip();
       await ctx.reply(b.topUpDone(id, res.balanceMinor));
-      await deps.notifier.toClient(res.topUp.client.telegramId, b.topUpConfirmed(res.topUp.amountMinor, res.balanceMinor));
+      await deps.notifier.toClient(
+        res.topUp.client.telegramId,
+        b.topUpConfirmed(res.topUp.amountMinor, res.balanceMinor),
+      );
       return;
     }
     const rejected = await deps.topups.reject(id, ctx.appUser.id);

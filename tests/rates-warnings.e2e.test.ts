@@ -28,7 +28,8 @@ describe.skipIf(!url)('exchange-rate warnings before quoting', () => {
   // ── Сервис курсов: скачки, снимок, устаревание ──────────────
   describe('RatesService', () => {
     let now: Date;
-    const mkService = (fetchXml: () => Promise<string>) => new RatesService(db, deps.log, fetchXml, () => now, deps.settings);
+    const mkService = (fetchXml: () => Promise<string>) =>
+      new RatesService(db, deps.log, fetchXml, () => now, deps.settings);
 
     it('detects a jump between hourly refreshes, alerts only for relevant currencies, and acknowledgement silences it', async () => {
       now = new Date('2026-10-30T10:00:00Z');
@@ -97,7 +98,9 @@ describe.skipIf(!url)('exchange-rate warnings before quoting', () => {
       const svc = mkService(async () => xml('90,0000'));
       await svc.setManual('USD', '100'); // CBR 90 -> +11%
       expect((await svc.assess('USD')).warnings).toMatchObject([{ kind: 'manual_diverged' }]);
-      await db.$executeRawUnsafe(`UPDATE "Setting" SET "updatedAt" = now() - interval '5 days' WHERE key = 'manualRate:USD'`);
+      await db.$executeRawUnsafe(
+        `UPDATE "Setting" SET "updatedAt" = now() - interval '5 days' WHERE key = 'manualRate:USD'`,
+      );
       expect((await svc.assess('USD')).warnings.map((w) => w.kind)).toEqual(['manual_old', 'manual_diverged']);
       expect((await svc.assess('RUB')).warnings).toEqual([]);
     });
@@ -148,8 +151,13 @@ describe.skipIf(!url)('exchange-rate warnings before quoting', () => {
     await makeManualRateOld();
     const o = await newOrder();
     const call = async (path: string, body: unknown) => {
-      const r = await app.inject({ method: 'POST', url: `/api${path}`, headers: { authorization: `tma ${buildSignedInitData({ id: ADMIN, first_name: 'A' }, BOT_TOKEN)}` }, payload: body as object });
-      return { status: r.statusCode, json: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await app.inject({
+        method: 'POST',
+        url: `/api${path}`,
+        headers: { authorization: `tma ${buildSignedInitData({ id: ADMIN, first_name: 'A' }, BOT_TOKEN)}` },
+        payload: body as object,
+      });
+      return { status: r.statusCode, json: r.json() as any };
     };
     const blocked = await call(`/admin/orders/${o.id}/quote`, { version: 1 });
     expect(blocked.status).toBe(409);

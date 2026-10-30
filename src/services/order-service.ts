@@ -4,7 +4,11 @@ import type { Db } from '../db/client.js';
 import { canTransition, InvalidTransitionError, type Actor } from '../domain/order-fsm.js';
 import { availableOf, doneEntries, payLaterExposure, type LedgerInput } from '../domain/ledger.js';
 import {
-  computeQuote, convertToRubMinor, rateFromDecimalString, rateToDecimalString, settlementDiff,
+  computeQuote,
+  convertToRubMinor,
+  rateFromDecimalString,
+  rateToDecimalString,
+  settlementDiff,
 } from '../domain/pricing.js';
 import { addPeriod } from '../domain/period.js';
 import { encrypt, type Keyring } from './crypto.js';
@@ -178,7 +182,13 @@ export class OrderService {
         include: { client: true },
       });
       await tx.orderEvent.create({
-        data: { orderId: order.id, actorId: input.clientId, fromStatus: null, toStatus: 'NEW', comment: 'Заявка создана' },
+        data: {
+          orderId: order.id,
+          actorId: input.clientId,
+          fromStatus: null,
+          toStatus: 'NEW',
+          comment: 'Заявка создана',
+        },
       });
       return order;
     });
@@ -224,8 +234,12 @@ export class OrderService {
       for (const e of ledger) {
         await tx.ledgerEntry.create({
           data: {
-            clientId: order.clientId, orderId, type: e.type, amountMinor: e.amountMinor,
-            comment: e.comment ?? null, createdById: actor.userId,
+            clientId: order.clientId,
+            orderId,
+            type: e.type,
+            amountMinor: e.amountMinor,
+            comment: e.comment ?? null,
+            createdById: actor.userId,
           },
         });
       }
@@ -290,7 +304,10 @@ export class OrderService {
   ): Promise<{ expired: boolean; order: OrderWithClient }> {
     const o = await this.getOrThrow(orderId);
     if (o.version === version && o.quoteExpiresAt && o.quoteExpiresAt <= this.now()) {
-      return { expired: true, order: await this.transition(orderId, version, 'EXPIRED', SYSTEM, { comment: 'Расчёт истёк' }) };
+      return {
+        expired: true,
+        order: await this.transition(orderId, version, 'EXPIRED', SYSTEM, { comment: 'Расчёт истёк' }),
+      };
     }
     const order = await this.run(orderId, version, CLIENT(clientId), async (tx, cur) => {
       if (cur.totalMinor == null) throw new OrderDataError('order is not quoted');
@@ -299,7 +316,8 @@ export class OrderService {
 
       if (cur.payMode === 'PREPAY') {
         return {
-          to: 'AWAITING_PAYMENT' as const, comment: 'Клиент подтвердил расчёт (перевод)',
+          to: 'AWAITING_PAYMENT' as const,
+          comment: 'Клиент подтвердил расчёт (перевод)',
           patch: { payMethodId, payDueMinor: total },
         };
       }
@@ -307,18 +325,23 @@ export class OrderService {
       if (cur.payMode === 'BALANCE') {
         const available = availableOf(await balanceOf(tx, cur.clientId));
         const reserve = available < total ? available : total;
-        const ledger: LedgerInput[] = reserve > 0n
-          ? [{ type: 'ORDER_RESERVE', amountMinor: -reserve, comment: `Резерв под заявку #${cur.id}` }]
-          : [];
+        const ledger: LedgerInput[] =
+          reserve > 0n
+            ? [{ type: 'ORDER_RESERVE', amountMinor: -reserve, comment: `Резерв под заявку #${cur.id}` }]
+            : [];
         if (reserve === total) {
           return {
-            to: 'IN_PROGRESS' as const, comment: 'Клиент подтвердил расчёт (оплата с баланса)',
-            patch: { reservedMinor: total, payDueMinor: 0n, paidAt: this.now() }, ledger,
+            to: 'IN_PROGRESS' as const,
+            comment: 'Клиент подтвердил расчёт (оплата с баланса)',
+            patch: { reservedMinor: total, payDueMinor: 0n, paidAt: this.now() },
+            ledger,
           };
         }
         return {
-          to: 'AWAITING_PAYMENT' as const, comment: 'Клиент подтвердил расчёт (баланс + доплата переводом)',
-          patch: { reservedMinor: reserve, payDueMinor: total - reserve, payMethodId }, ledger,
+          to: 'AWAITING_PAYMENT' as const,
+          comment: 'Клиент подтвердил расчёт (баланс + доплата переводом)',
+          patch: { reservedMinor: reserve, payDueMinor: total - reserve, payMethodId },
+          ledger,
         };
       }
 
@@ -326,13 +349,19 @@ export class OrderService {
       const user = await tx.user.findUniqueOrThrow({ where: { id: cur.clientId } });
       if (!user.payLaterEnabled) throw new PayLaterDeniedError();
       const open = await tx.order.aggregate({
-        where: { clientId: cur.clientId, payMode: 'PAY_LATER', status: { in: ['IN_PROGRESS', 'LINK_INVALID'] }, id: { not: cur.id } },
+        where: {
+          clientId: cur.clientId,
+          payMode: 'PAY_LATER',
+          status: { in: ['IN_PROGRESS', 'LINK_INVALID'] },
+          id: { not: cur.id },
+        },
         _sum: { totalMinor: true },
       });
       const exposure = payLaterExposure(await balanceOf(tx, cur.clientId), open._sum.totalMinor ?? 0n, total);
       if (exposure > user.payLaterLimitMinor) throw new PayLaterLimitError(user.payLaterLimitMinor, exposure);
       return {
-        to: 'IN_PROGRESS' as const, comment: 'Клиент подтвердил расчёт (оплата позже)',
+        to: 'IN_PROGRESS' as const,
+        comment: 'Клиент подтвердил расчёт (оплата позже)',
         patch: { payDueMinor: 0n },
       };
     });
@@ -349,7 +378,13 @@ export class OrderService {
         after: async (tx: Prisma.TransactionClient, order: Order) => {
           if (receipt) {
             await tx.attachment.create({
-              data: { orderId: order.id, kind: 'RECEIPT', tgFileId: receipt.fileId, tgFileType: receipt.fileType, uploadedById: clientId },
+              data: {
+                orderId: order.id,
+                kind: 'RECEIPT',
+                tgFileId: receipt.fileId,
+                tgFileType: receipt.fileType,
+                uploadedById: clientId,
+              },
             });
           }
         },
@@ -376,12 +411,17 @@ export class OrderService {
       if (o.status !== 'AWAITING_PAYMENT') throw new RequisitesNotAllowedError();
       await tx.order.update({ where: { id: orderId }, data: { payMethodId: methodId } });
       await tx.orderEvent.create({
-        data: { orderId, actorId: adminId, fromStatus: o.status, toStatus: o.status, comment: `Реквизиты отправлены ${auto ? 'автоматически' : 'клиенту'}: ${title}` },
+        data: {
+          orderId,
+          actorId: adminId,
+          fromStatus: o.status,
+          toStatus: o.status,
+          comment: `Реквизиты отправлены ${auto ? 'автоматически' : 'клиенту'}: ${title}`,
+        },
       });
     });
     return this.getOrThrow(orderId);
   }
-
 
   /**
    * Админ подтвердил поступление перевода. Зачисляем его в журнал; для BALANCE докидываем сумму в резерв,
@@ -391,7 +431,9 @@ export class OrderService {
     return this.run(orderId, version, ADMIN(adminId), (_tx, o) => {
       if (o.totalMinor == null) throw new OrderDataError('order is not quoted');
       const due = o.payDueMinor ?? o.totalMinor;
-      const ledger: LedgerInput[] = [{ type: 'PAYMENT_RECEIVED', amountMinor: due, comment: `Оплата заявки #${orderId}` }];
+      const ledger: LedgerInput[] = [
+        { type: 'PAYMENT_RECEIVED', amountMinor: due, comment: `Оплата заявки #${orderId}` },
+      ];
       const patch: Prisma.OrderUncheckedUpdateManyInput = { paidAt: this.now() };
       if (o.payMode === 'BALANCE') {
         ledger.push({ type: 'ORDER_RESERVE', amountMinor: -due, comment: `Резерв под заявку #${orderId}` });
@@ -409,7 +451,13 @@ export class OrderService {
     return this.transition(orderId, version, 'LINK_INVALID', ADMIN(adminId), { comment: 'Ссылка не работает' });
   }
 
-  submitNewLink(orderId: number, version: number, clientId: number, url: string, domain: string): Promise<OrderWithClient> {
+  submitNewLink(
+    orderId: number,
+    version: number,
+    clientId: number,
+    url: string,
+    domain: string,
+  ): Promise<OrderWithClient> {
     return this.transition(orderId, version, 'IN_PROGRESS', CLIENT(clientId), {
       comment: 'Клиент прислал новую ссылку',
       patch: { url, urlDomain: domain },
@@ -417,7 +465,10 @@ export class OrderService {
   }
 
   reject(orderId: number, version: number, adminId: number, reason: string): Promise<OrderWithClient> {
-    return this.transition(orderId, version, 'REJECTED', ADMIN(adminId), { comment: reason, patch: { rejectReason: reason } });
+    return this.transition(orderId, version, 'REJECTED', ADMIN(adminId), {
+      comment: reason,
+      patch: { rejectReason: reason },
+    });
   }
 
   cancel(orderId: number, version: number, clientId: number): Promise<OrderWithClient> {
@@ -471,8 +522,11 @@ export class OrderService {
         if (input.screenshot) {
           await tx.attachment.create({
             data: {
-              orderId: done.id, kind: 'SCREENSHOT', tgFileId: input.screenshot.fileId,
-              tgFileType: input.screenshot.fileType, uploadedById: adminId,
+              orderId: done.id,
+              kind: 'SCREENSHOT',
+              tgFileId: input.screenshot.fileId,
+              tgFileType: input.screenshot.fileType,
+              uploadedById: adminId,
             },
           });
         }
@@ -506,17 +560,33 @@ export class OrderService {
 
       const order = await tx.order.create({
         data: {
-          clientId, type: src.type, service: src.service, description: src.description,
-          url: over.url, urlDomain: over.urlDomain,
-          giftStore: src.giftStore, giftRegion: src.giftRegion,
-          amountMinor: src.amountMinor, currency: src.currency,
-          isSubscription: true, periodKind: src.periodKind, periodDays: src.periodDays,
-          comment: src.comment, payMode: over.payMode, renewedFromId: src.id,
+          clientId,
+          type: src.type,
+          service: src.service,
+          description: src.description,
+          url: over.url,
+          urlDomain: over.urlDomain,
+          giftStore: src.giftStore,
+          giftRegion: src.giftRegion,
+          amountMinor: src.amountMinor,
+          currency: src.currency,
+          isSubscription: true,
+          periodKind: src.periodKind,
+          periodDays: src.periodDays,
+          comment: src.comment,
+          payMode: over.payMode,
+          renewedFromId: src.id,
         },
         include: { client: true },
       });
       await tx.orderEvent.create({
-        data: { orderId: order.id, actorId: clientId, fromStatus: null, toStatus: 'NEW', comment: `Продление заявки #${src.id}` },
+        data: {
+          orderId: order.id,
+          actorId: clientId,
+          fromStatus: null,
+          toStatus: 'NEW',
+          comment: `Продление заявки #${src.id}`,
+        },
       });
       return order;
     });

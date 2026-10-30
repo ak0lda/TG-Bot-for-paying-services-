@@ -17,7 +17,13 @@ export function adminReportHandlers(deps: Deps): Composer<BotContext> {
     if (!range) return void (await ctx.reply(`${r.badPeriod}\n\n${r.periodUsage}`, html));
     const rep = await deps.reports.stats(range);
     await ctx.reply(
-      r.stats({ label: range.label, stats: rep.stats, created: rep.createdByStatus, topUp: rep.topUpMinor, repaid: rep.repaidMinor }),
+      r.stats({
+        label: range.label,
+        stats: rep.stats,
+        created: rep.createdByStatus,
+        topUp: rep.topUpMinor,
+        repaid: rep.repaidMinor,
+      }),
       html,
     );
   });
@@ -30,8 +36,12 @@ export function adminReportHandlers(deps: Deps): Composer<BotContext> {
     const stamp = (ctx.match.trim() || 'month').toLowerCase().replace(/[^0-9a-z-]+/g, '_');
     // BOM — чтобы Excel правильно распознал UTF-8.
     const file = (csv: string, name: string) => new InputFile(Buffer.from(`﻿${csv}`, 'utf8'), name);
-    await ctx.replyWithDocument(file(orders.csv, `orders_${stamp}.csv`), { caption: r.exportCaption('Заявки', range.label, orders.rows) });
-    await ctx.replyWithDocument(file(ledger.csv, `ledger_${stamp}.csv`), { caption: r.exportCaption('Операции баланса', range.label, ledger.rows) });
+    await ctx.replyWithDocument(file(orders.csv, `orders_${stamp}.csv`), {
+      caption: r.exportCaption('Заявки', range.label, orders.rows),
+    });
+    await ctx.replyWithDocument(file(ledger.csv, `ledger_${stamp}.csv`), {
+      caption: r.exportCaption('Операции баланса', range.label, ledger.rows),
+    });
   });
 
   c.command('subs', async (ctx) => {

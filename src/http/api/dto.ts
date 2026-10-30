@@ -10,7 +10,8 @@ const m = (x: bigint | null | undefined): string | null => (x == null ? null : x
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
 export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew';
-export type AdminAction = 'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
+export type AdminAction =
+  'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
 
 /** Список доступных действий выводится из автомата статусов — UI не может предложить недопустимое. */
 export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscription' | 'payMethodId'>): ClientAction[] {
@@ -20,8 +21,7 @@ export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscript
     // «Я оплатил» доступно, когда админ уже прислал реквизиты.
     else if (to === 'PAYMENT_CHECK') {
       if (o.payMethodId != null) out.push('pay');
-    }
-    else if (to === 'QUOTED') out.push('requote');
+    } else if (to === 'QUOTED') out.push('requote');
     else if (to === 'AWAITING_PAYMENT' || (to === 'IN_PROGRESS' && o.status === 'QUOTED')) out.push('confirm');
     else if (to === 'IN_PROGRESS' && o.status === 'LINK_INVALID') out.push('new_link');
   }

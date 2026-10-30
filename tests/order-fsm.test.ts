@@ -40,7 +40,15 @@ describe('order FSM', () => {
   });
 
   it('admin may reject any non-final order; final states are terminal', () => {
-    for (const s of ['NEW', 'QUOTED', 'AWAITING_PAYMENT', 'PAYMENT_CHECK', 'IN_PROGRESS', 'LINK_INVALID', 'EXPIRED'] as const) {
+    for (const s of [
+      'NEW',
+      'QUOTED',
+      'AWAITING_PAYMENT',
+      'PAYMENT_CHECK',
+      'IN_PROGRESS',
+      'LINK_INVALID',
+      'EXPIRED',
+    ] as const) {
       expect(canTransition(o(s), 'REJECTED', 'ADMIN')).toBe(true);
     }
     for (const s of ['DONE', 'CANCELED', 'REJECTED'] as const) {

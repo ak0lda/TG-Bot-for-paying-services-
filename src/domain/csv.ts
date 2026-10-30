@@ -10,7 +10,8 @@ export function csvCell(cell: Cell): string {
   if (cell === null || cell === undefined) return '';
   let s: string;
   if (cell instanceof Date) s = cell.toISOString();
-  else if (typeof cell === 'object') s = FORMULA_START.test(cell.text) ? `'${cell.text}` : cell.text; // свободный текст
+  else if (typeof cell === 'object')
+    s = FORMULA_START.test(cell.text) ? `'${cell.text}` : cell.text; // свободный текст
   else s = String(cell); // числа и булевы значения не трогаем: «-5» — это число, а не формула
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

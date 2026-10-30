@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  computeQuote, convertToRubMinor, formatRate, parseRate, rateFromDecimalString, rateToDecimalString, settlementDiff,
+  computeQuote,
+  convertToRubMinor,
+  formatRate,
+  parseRate,
+  rateFromDecimalString,
+  rateToDecimalString,
+  settlementDiff,
 } from '../src/domain/pricing.js';
 
 const base = { amountMinor: 1000n, rateScaled: parseRate('90'), fxBufferBp: 0, markupBp: 0, fixedFeeMinor: 0n };

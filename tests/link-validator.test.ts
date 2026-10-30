@@ -8,7 +8,11 @@ describe('validateLink', () => {
     const r = validateLink('https://checkout.stripe.com/c/pay/cs_live_abc#frag', trusted);
     expect(r).toMatchObject({ ok: true, domain: 'checkout.stripe.com', trusted: true });
     expect(validateLink('https://pay.paddle.com/checkout/1', trusted)).toMatchObject({ ok: true, trusted: true });
-    expect(validateLink('https://www.PayPal.com/x', trusted)).toMatchObject({ ok: true, domain: 'paypal.com', trusted: true });
+    expect(validateLink('https://www.PayPal.com/x', trusted)).toMatchObject({
+      ok: true,
+      domain: 'paypal.com',
+      trusted: true,
+    });
   });
 
   it('marks unknown domains as untrusted but valid', () => {
@@ -37,10 +41,13 @@ describe('validateLink', () => {
     expect(validateLink(`https://shop.com/${'a'.repeat(3000)}`, trusted)).toEqual({ ok: false, error: 'too_long' });
   });
 
-  it.each(['https://bit.ly/abc', 'https://t.co/x', 'https://tinyurl.com/y', 'https://cutt.ly/z', 'https://www.bit.ly/q'])(
-    'rejects shortener %s',
-    (u) => expect(validateLink(u, trusted)).toEqual({ ok: false, error: 'shortener' }),
-  );
+  it.each([
+    'https://bit.ly/abc',
+    'https://t.co/x',
+    'https://tinyurl.com/y',
+    'https://cutt.ly/z',
+    'https://www.bit.ly/q',
+  ])('rejects shortener %s', (u) => expect(validateLink(u, trusted)).toEqual({ ok: false, error: 'shortener' }));
 });
 
 describe('isTrustedDomain', () => {

@@ -133,7 +133,13 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
       skip: (d) => d.currency !== undefined,
       prompt: () => ({
         text: ot.stepCurrency,
-        buttons: [[{ label: 'USD', value: 'USD' }, { label: 'EUR', value: 'EUR' }, { label: 'GBP', value: 'GBP' }]],
+        buttons: [
+          [
+            { label: 'USD', value: 'USD' },
+            { label: 'EUR', value: 'EUR' },
+            { label: 'GBP', value: 'GBP' },
+          ],
+        ],
       }),
       handle: async (input, d) => {
         const cur = await checkCurrency(input.button ?? input.text ?? '');

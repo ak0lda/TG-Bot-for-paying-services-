@@ -28,21 +28,33 @@ export const newOrderSchema = z.object({
 
 const MAX_AMOUNT_MINOR = 100_000_000n;
 
-const fail = (code: string, message: string, extra: Record<string, unknown> = {}) => new ApiError(422, code, message, extra);
+const fail = (code: string, message: string, extra: Record<string, unknown> = {}) =>
+  new ApiError(422, code, message, extra);
 
 /** Те же правила, что в диалоге бота: ссылки, секреты, валюта/курс, режим оплаты, обязательные поля по типам. */
-export async function toNewOrderInput(deps: Deps, clientId: number, body: unknown): Promise<{ input: NewOrderInput; untrusted: boolean }> {
+export async function toNewOrderInput(
+  deps: Deps,
+  clientId: number,
+  body: unknown,
+): Promise<{ input: NewOrderInput; untrusted: boolean }> {
   const b = newOrderSchema.parse(body);
 
-  for (const [field, value] of Object.entries({ service: b.service, region: b.region, description: b.description, comment: b.comment })) {
+  for (const [field, value] of Object.entries({
+    service: b.service,
+    region: b.region,
+    description: b.description,
+    comment: b.comment,
+  })) {
     if (value && detectSecret(value)) throw fail('secret_detected', ot.secretWarning, { field });
   }
 
   const needsUrl = b.type === 'PAYMENT_LINK' || b.type === 'TOP_UP';
   const allowsUrl = b.type !== 'GIFT_CARD';
   const needsDescription = b.type !== 'GIFT_CARD';
-  if (b.type === 'GIFT_CARD' && !b.region) throw fail('region_required', 'Укажи регион подарочной карты', { field: 'region' });
-  if (needsDescription && !b.description) throw fail('description_required', 'Нужно описание', { field: 'description' });
+  if (b.type === 'GIFT_CARD' && !b.region)
+    throw fail('region_required', 'Укажи регион подарочной карты', { field: 'region' });
+  if (needsDescription && !b.description)
+    throw fail('description_required', 'Нужно описание', { field: 'description' });
 
   let url: string | null = null;
   let urlDomain: string | null = null;
@@ -64,7 +76,8 @@ export async function toNewOrderInput(deps: Deps, clientId: number, body: unknow
     if (e instanceof MoneyParseError) throw fail('bad_amount', ot.badAmount, { field: 'amount' });
     throw e;
   }
-  if (amountMinor <= 0n || amountMinor > MAX_AMOUNT_MINOR) throw fail('amount_limit', ot.amountLimit, { field: 'amount' });
+  if (amountMinor <= 0n || amountMinor > MAX_AMOUNT_MINOR)
+    throw fail('amount_limit', ot.amountLimit, { field: 'amount' });
 
   const currency = b.currency.toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) throw fail('bad_currency', ot.badCurrency, { field: 'currency' });
@@ -72,16 +85,19 @@ export async function toNewOrderInput(deps: Deps, clientId: number, body: unknow
   try {
     await deps.rates.getRate(currency);
   } catch (e) {
-    if (e instanceof RateUnavailableError) throw fail('rate_unavailable', ot.noRate(currency).replace(/<[^>]+>/g, ''), { field: 'currency' });
+    if (e instanceof RateUnavailableError)
+      throw fail('rate_unavailable', ot.noRate(currency).replace(/<[^>]+>/g, ''), { field: 'currency' });
     throw e;
   }
 
   const subscribable = b.type === 'PAYMENT_LINK' || b.type === 'OTHER';
   const isSubscription = subscribable && b.period !== 'ONE';
-  if (isSubscription && b.period === 'CUSTOM' && !b.periodDays) throw fail('days_required', ot.badDays, { field: 'periodDays' });
+  if (isSubscription && b.period === 'CUSTOM' && !b.periodDays)
+    throw fail('days_required', ot.badDays, { field: 'periodDays' });
 
   const modes = await availableModes(deps, clientId);
-  if (!modes.some((x) => x.mode === b.payMode)) throw fail('pay_mode_unavailable', ot.payModeUnavailable, { field: 'payMode' });
+  if (!modes.some((x) => x.mode === b.payMode))
+    throw fail('pay_mode_unavailable', ot.payModeUnavailable, { field: 'payMode' });
 
   return {
     untrusted,

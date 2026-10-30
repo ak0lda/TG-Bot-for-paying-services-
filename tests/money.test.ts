@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ceilToWholeRubles, formatMinor, formatRub, MoneyParseError, parseDecimalToMinor } from '../src/domain/money.js';
+import {
+  ceilToWholeRubles,
+  formatMinor,
+  formatRub,
+  MoneyParseError,
+  parseDecimalToMinor,
+} from '../src/domain/money.js';
 
 describe('parseDecimalToMinor', () => {
   it.each([

@@ -17,7 +17,7 @@ export interface Sent {
   method: string;
   chat: number;
   text: string;
-  payload: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  payload: Record<string, any>;
 }
 
 /** Бот целиком (grammY + сервисы + реальная БД) с подставным Telegram API, который записывает вызовы. */
@@ -30,14 +30,23 @@ export const CBR_XML = `<ValCurs>
 <Valute ID="R01035"><NumCode>826</NumCode><CharCode>GBP</CharCode><Nominal>1</Nominal><Name>Фунт</Name><Value>115,0000</Value></Valute>
 </ValCurs>`;
 
-export function createHarness(url: string, extraEnv: Record<string, string> = {}, fetchRatesXml: () => Promise<string> = async () => CBR_XML) {
+export function createHarness(
+  url: string,
+  extraEnv: Record<string, string> = {},
+  fetchRatesXml: () => Promise<string> = async () => CBR_XML,
+) {
   const encKey = randomBytes(32);
   const sent: Sent[] = [];
   let updateId = 1;
   let msgId = 100;
 
-  const transformer = async (_prev: unknown, method: string, payload: Record<string, any>) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    sent.push({ method, chat: Number(payload.chat_id ?? 0), text: String(payload.text ?? payload.caption ?? ''), payload });
+  const transformer = async (_prev: unknown, method: string, payload: Record<string, any>) => {
+    sent.push({
+      method,
+      chat: Number(payload.chat_id ?? 0),
+      text: String(payload.text ?? payload.caption ?? ''),
+      payload,
+    });
     const result =
       method.startsWith('send') || method.startsWith('edit')
         ? { message_id: ++msgId, date: 0, chat: { id: payload.chat_id ?? 0, type: 'private' }, text: payload.text }
@@ -46,8 +55,12 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
   };
 
   const config = loadConfig({
-    BOT_TOKEN, ADMIN_TELEGRAM_ID: String(ADMIN), DATABASE_URL: url,
-    ENCRYPTION_KEY: encKey.toString('base64'), LOG_LEVEL: 'fatal', ...extraEnv,
+    BOT_TOKEN,
+    ADMIN_TELEGRAM_ID: String(ADMIN),
+    DATABASE_URL: url,
+    ENCRYPTION_KEY: encKey.toString('base64'),
+    LOG_LEVEL: 'fatal',
+    ...extraEnv,
   });
   const db: Db = createDb(url);
   const api = new Api(config.BOT_TOKEN);
@@ -56,9 +69,17 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
   const bot: Bot<BotContext> = createBot(deps, { rateLimit: { capacity: 10_000, refillPerSec: 10_000 } });
   bot.api.config.use(transformer as never);
   bot.botInfo = {
-    id: 1, is_bot: true, first_name: 'Bot', username: 'test_bot', can_join_groups: false,
-    can_read_all_group_messages: false, supports_inline_queries: false, can_connect_to_business: false,
-    has_main_web_app: false, has_topics_enabled: false, allows_users_to_create_topics: false,
+    id: 1,
+    is_bot: true,
+    first_name: 'Bot',
+    username: 'test_bot',
+    can_join_groups: false,
+    can_read_all_group_messages: false,
+    supports_inline_queries: false,
+    can_connect_to_business: false,
+    has_main_web_app: false,
+    has_topics_enabled: false,
+    allows_users_to_create_topics: false,
   } as never;
 
   const from = (id: number) => ({ id, is_bot: false, first_name: `U${id}` });
@@ -69,30 +90,52 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
       : undefined;
     await bot.handleUpdate({
       update_id: updateId++,
-      message: { message_id: msgId++, date: 0, chat: { id, type: 'private' }, from: from(id), text, ...(entities ? { entities } : {}) },
+      message: {
+        message_id: msgId++,
+        date: 0,
+        chat: { id, type: 'private' },
+        from: from(id),
+        text,
+        ...(entities ? { entities } : {}),
+      },
     } as never);
   }
   async function photo(id: number) {
     await bot.handleUpdate({
       update_id: updateId++,
-      message: { message_id: msgId++, date: 0, chat: { id, type: 'private' }, from: from(id), photo: [{ file_id: 'PH1', file_unique_id: 'u', width: 1, height: 1 }] },
+      message: {
+        message_id: msgId++,
+        date: 0,
+        chat: { id, type: 'private' },
+        from: from(id),
+        photo: [{ file_id: 'PH1', file_unique_id: 'u', width: 1, height: 1 }],
+      },
     } as never);
   }
   async function click(id: number, data: string) {
     await bot.handleUpdate({
       update_id: updateId++,
       callback_query: {
-        id: String(updateId), from: from(id), chat_instance: 'ci', data,
+        id: String(updateId),
+        from: from(id),
+        chat_instance: 'ci',
+        data,
         message: { message_id: msgId++, date: 0, chat: { id, type: 'private' }, text: 'x' },
       },
     } as never);
   }
 
   const lastTo = (chat: number) => [...sent].reverse().find((s) => s.chat === chat && s.method === 'sendMessage');
-  const allTo = (chat: number) => sent.filter((s) => s.chat === chat).map((s) => s.text).join('\n---\n');
+  const allTo = (chat: number) =>
+    sent
+      .filter((s) => s.chat === chat)
+      .map((s) => s.text)
+      .join('\n---\n');
   const alerts = () => sent.filter((s) => s.method === 'answerCallbackQuery').map((s) => s.text);
   const cbData = (s: Sent | undefined): string[] =>
-    ((s?.payload.reply_markup?.inline_keyboard ?? []) as Array<Array<{ callback_data?: string }>>).flat().map((b) => b.callback_data ?? '');
+    ((s?.payload.reply_markup?.inline_keyboard ?? []) as Array<Array<{ callback_data?: string }>>)
+      .flat()
+      .map((b) => b.callback_data ?? '');
 
   async function reset() {
     sent.length = 0;
@@ -124,5 +167,22 @@ export function createHarness(url: string, extraEnv: Record<string, string> = {}
 
   const orderVersion = async (id: number) => (await db.order.findUniqueOrThrow({ where: { id } })).version;
 
-  return { db, deps, bot, sent, encKey, say, photo, click, lastTo, allTo, alerts, cbData, reset, onboard, orderVersion, requisites };
+  return {
+    db,
+    deps,
+    bot,
+    sent,
+    encKey,
+    say,
+    photo,
+    click,
+    lastTo,
+    allTo,
+    alerts,
+    cbData,
+    reset,
+    onboard,
+    orderVersion,
+    requisites,
+  };
 }

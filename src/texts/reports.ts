@@ -11,7 +11,10 @@ const rows = (list: Row[], limit = 10) =>
   list.slice(0, limit).map((r) => `${escapeHtml(r.label)} — ${formatRub(r.turnoverMinor)} (${r.count})`);
 
 const cardRows = (list: CardRow[]) =>
-  list.map((c) => `${escapeHtml(c.label)} — ${formatMinor(c.chargeMinor)} ${c.currency} ≈ ${formatRub(c.rubMinor)} (${c.count})`);
+  list.map(
+    (c) =>
+      `${escapeHtml(c.label)} — ${formatMinor(c.chargeMinor)} ${c.currency} ≈ ${formatRub(c.rubMinor)} (${c.count})`,
+  );
 
 export const r = {
   periodUsage:
@@ -37,7 +40,17 @@ export const r = {
       `Пополнения балансов: ${formatRub(p.topUp)} · погашено долгов: ${formatRub(p.repaid)}`,
     ];
     if (s.count > 0) {
-      lines.push('', '<b>По клиентам</b>', ...rows(s.byClient), '', '<b>По сервисам</b>', ...rows(s.byService), '', '<b>По картам</b> (списано в валюте карты ≈ в ₽)', ...cardRows(s.byCard));
+      lines.push(
+        '',
+        '<b>По клиентам</b>',
+        ...rows(s.byClient),
+        '',
+        '<b>По сервисам</b>',
+        ...rows(s.byService),
+        '',
+        '<b>По картам</b> (списано в валюте карты ≈ в ₽)',
+        ...cardRows(s.byCard),
+      );
     }
     return lines.join('\n');
   },
