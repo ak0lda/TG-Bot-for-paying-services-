@@ -36,7 +36,7 @@ export function buildDeps(config: Config, db: Db, log: Logger, api: Api): Deps {
     notifier,
     topups: new TopUpService(db),
     reports: new ReportService(db),
-    orders: new OrderService(db, rates, settings, config.ENCRYPTION_KEY),
+    orders: new OrderService(db, rates, settings, config.keyring),
     presenter: new Presenter({ domains, settings, config, catalog, notifier }),
     wizards: new WizardManager(),
   };

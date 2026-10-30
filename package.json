@@ -19,7 +19,8 @@
     "webapp:dev": "pnpm --filter webapp dev",
     "webapp:build": "pnpm --filter webapp build",
     "webapp:smoke": "tsx scripts/webapp-smoke.ts",
-    "webapp:link": "tsx scripts/webapp-link.ts"
+    "webapp:link": "tsx scripts/webapp-link.ts",
+    "keys:rotate": "tsx scripts/rotate-key.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.8",

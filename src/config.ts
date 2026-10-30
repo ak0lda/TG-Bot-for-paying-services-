@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { makeKeyring, parseOldKeys } from './services/crypto.js';
 
 const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
 
@@ -32,6 +33,10 @@ const schema = z
     HTTP_HOST: z.string().default('0.0.0.0'),
     HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     ENCRYPTION_KEY: encryptionKey,
+    /** Номер текущего ключа (1..255). При ротации увеличивается; старый ключ переносится в ENCRYPTION_KEYS_OLD. */
+    ENCRYPTION_KEY_ID: z.coerce.number().int().min(1).max(255).default(1),
+    /** Старые ключи для чтения ещё не перешифрованных данных: "1:<base64>,2:<base64>". */
+    ENCRYPTION_KEYS_OLD: z.preprocess(emptyToUndefined, z.string().optional()),
     TIMEZONE: z.string().default('Europe/Moscow'),
     /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
     WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),
@@ -47,10 +52,19 @@ const schema = z
     }
   });
 
-export type Config = z.infer<typeof schema>;
+const withKeyring = schema.transform((cfg, ctx) => {
+  try {
+    return { ...cfg, keyring: makeKeyring(cfg.ENCRYPTION_KEY_ID, cfg.ENCRYPTION_KEY, parseOldKeys(cfg.ENCRYPTION_KEYS_OLD)) };
+  } catch (e) {
+    ctx.addIssue({ code: 'custom', path: ['ENCRYPTION_KEYS_OLD'], message: (e as Error).message });
+    return z.NEVER;
+  }
+});
+
+export type Config = z.output<typeof withKeyring>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = schema.safeParse(env);
+  const parsed = withKeyring.safeParse(env);
   if (!parsed.success) {
     const problems = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('\n  ');
     throw new Error(`Invalid environment configuration:\n  ${problems}`);

@@ -14,6 +14,7 @@ import { clientHandlers } from './handlers/client.js';
 import { orderCallbacks } from './handlers/order-callbacks.js';
 import { o as ot } from '../texts/orders.js';
 import { t } from '../texts/ru.js';
+import { safeError } from '../logging/safe-error.js';
 
 export interface BotOptions {
   rateLimit?: { capacity: number; refillPerSec: number };
@@ -49,7 +50,7 @@ export function createBot(deps: Deps, opts: BotOptions = {}): Bot<BotContext> {
 
   bot.catch(async (err) => {
     // Без содержимого апдейта: только технические данные.
-    deps.log.error({ updateId: err.ctx.update.update_id, err: (err.error as Error).message }, 'handler failed');
+    deps.log.error({ updateId: err.ctx.update.update_id, ...safeError(err.error) }, 'handler failed');
     await err.ctx.reply(t.internalError).catch(() => undefined);
   });
 

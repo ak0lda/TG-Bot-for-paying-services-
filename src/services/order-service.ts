@@ -7,7 +7,7 @@ import {
   computeQuote, convertToRubMinor, rateFromDecimalString, rateToDecimalString, settlementDiff,
 } from '../domain/pricing.js';
 import { addPeriod } from '../domain/period.js';
-import { encrypt } from './crypto.js';
+import { encrypt, type Keyring } from './crypto.js';
 import { balanceOf, lockClient } from './ledger-service.js';
 import type { RatesProvider } from './rates.js';
 import type { SettingsService } from './settings-service.js';
@@ -130,7 +130,7 @@ export class OrderService {
     private readonly db: Db,
     private readonly rates: RatesProvider,
     private readonly settings: Pick<SettingsService, 'getAll'>,
-    private readonly encryptionKey: Buffer,
+    private readonly keyring: Keyring,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -455,7 +455,7 @@ export class OrderService {
       reservedMinor: 0n,
     };
     if (o.type === 'GIFT_CARD' && input.giftCode) {
-      patch.giftCodeEnc = new Uint8Array(encrypt(input.giftCode.trim(), this.encryptionKey));
+      patch.giftCodeEnc = new Uint8Array(encrypt(input.giftCode.trim(), this.keyring));
       patch.giftCodeDeleteAt = new Date(now.getTime() + settings.giftCodeRetentionDays * 86_400_000);
     }
     if (o.isSubscription && o.periodKind) patch.nextChargeAt = addPeriod(now, o.periodKind, o.periodDays);

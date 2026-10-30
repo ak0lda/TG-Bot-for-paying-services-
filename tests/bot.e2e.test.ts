@@ -166,7 +166,7 @@ describe.skipIf(!url)('bot e2e (fake Telegram)', () => {
     expect(order.status).toBe('DONE');
     expect(order.giftCodeEnc).not.toBeNull();
     expect(Buffer.from(order.giftCodeEnc!).includes(Buffer.from('ABCD'))).toBe(false);
-    expect(decrypt(order.giftCodeEnc!, encKey)).toBe('ABCD-EFGH-1234');
+    expect(decrypt(order.giftCodeEnc!, deps.config.keyring)).toBe('ABCD-EFGH-1234');
     expect(order.giftCodeDeleteAt!.getTime()).toBeGreaterThan(Date.now() + 6 * 86_400_000);
     expect(allTo(CLIENT)).toMatch(/ABCD-EFGH-1234/);
     expect(sent.some((s) => s.method === 'deleteMessage')).toBe(true); // код удалён из чата админа

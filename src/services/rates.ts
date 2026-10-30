@@ -2,6 +2,7 @@ import type { Db } from '../db/client.js';
 import type { Logger } from '../logger.js';
 import { RATE_DECIMALS, RATE_SCALE, parseRate } from '../domain/pricing.js';
 import { parseDecimalToMinor } from '../domain/money.js';
+import { safeError } from '../logging/safe-error.js';
 
 export type RateSource = 'CBR' | 'MANUAL';
 
@@ -93,7 +94,7 @@ export class RatesService implements RatesProvider {
       if (rates.size === 0) throw new Error('empty CBR response');
       this.cache = { rates, fetchedAt: this.now() };
     } catch (e) {
-      this.log.warn({ err: (e as Error).message }, this.cache ? 'CBR fetch failed, using stale cache' : 'CBR fetch failed');
+      this.log.warn({ ...safeError(e) }, this.cache ? 'CBR fetch failed, using stale cache' : 'CBR fetch failed');
     }
     return this.cache;
   }

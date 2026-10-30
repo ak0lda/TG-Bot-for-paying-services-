@@ -2,6 +2,7 @@ import type { Api } from 'grammy';
 import type { InlineKeyboard } from 'grammy';
 import type { Config } from '../config.js';
 import type { Logger } from '../logger.js';
+import { safeError } from '../logging/safe-error.js';
 
 export interface Attachment {
   fileId: string;
@@ -33,7 +34,7 @@ export class Notifier {
       if (a.fileType === 'photo') await this.api.sendPhoto(this.adminChat, a.fileId, caption ? { caption } : {});
       else await this.api.sendDocument(this.adminChat, a.fileId, caption ? { caption } : {});
     } catch (e) {
-      this.log.warn({ err: (e as Error).message }, 'attachment delivery failed');
+      this.log.warn({ ...safeError(e) }, 'attachment delivery failed');
     }
   }
 
@@ -46,7 +47,7 @@ export class Notifier {
       });
       return true;
     } catch (e) {
-      this.log.warn({ err: (e as Error).message }, 'notification failed');
+      this.log.warn({ ...safeError(e) }, 'notification failed');
       return false;
     }
   }

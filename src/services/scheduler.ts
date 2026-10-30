@@ -5,6 +5,7 @@ import { balancesByClient } from './ledger-service.js';
 import { b } from '../texts/balance.js';
 import { r } from '../texts/reports.js';
 import { o as ot } from '../texts/orders.js';
+import { safeError } from '../logging/safe-error.js';
 
 const SWEEP_MS = 5 * 60 * 1000;
 
@@ -94,7 +95,7 @@ export function startScheduler(deps: SchedulerDeps): () => void {
       const purged = await purgeGiftCodes(deps);
       if (purged > 0) deps.log.info({ purged }, 'gift codes purged');
     } catch (e) {
-      deps.log.error({ err: (e as Error).message }, 'scheduler sweep failed');
+      deps.log.error({ ...safeError(e) }, 'scheduler sweep failed');
     }
   };
   void sweep();

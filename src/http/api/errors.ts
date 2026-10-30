@@ -6,6 +6,7 @@ import {
   ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RenewalExistsError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError,
 } from '../../services/order-service.js';
 import { RateUnavailableError } from '../../services/rates.js';
+import { safeError } from '../../logging/safe-error.js';
 
 export class ApiError extends Error {
   constructor(
@@ -53,7 +54,7 @@ export function errorHandler(log: Logger) {
       return reply.code(error.statusCode).send({ error: 'bad_request', message: 'Некорректный запрос' });
     }
     // Без тела запроса и заголовков: только технические данные.
-    log.error({ err: error.message, method: req.method, route: req.routeOptions?.url }, 'api request failed');
+    log.error({ ...safeError(error), method: req.method, route: req.routeOptions?.url }, 'api request failed');
     return reply.code(500).send({ error: 'internal', message: 'Внутренняя ошибка' });
   };
 }

@@ -4,6 +4,7 @@ import { InvalidTransitionError } from '../domain/order-fsm.js';
 import { ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError } from '../services/order-service.js';
 import { RateUnavailableError } from '../services/rates.js';
 import { o as ot } from '../texts/orders.js';
+import { safeError } from '../logging/safe-error.js';
 
 const html = { parse_mode: 'HTML' as const };
 
@@ -38,7 +39,7 @@ export async function handleOrderError(ctx: BotContext, deps: Deps, e: unknown, 
   if (e instanceof OrderNotFoundError) return void (await ctx.reply(ot.notFound)), true;
   if (e instanceof RateUnavailableError) return void (await ctx.reply(ot.rateErr(e.currency))), true;
   if (e instanceof OrderDataError) {
-    deps.log.warn({ err: e.message }, 'order data error');
+    deps.log.warn({ ...safeError(e) }, 'order data error');
     await ctx.reply(ot.invalidAction);
     return true;
   }

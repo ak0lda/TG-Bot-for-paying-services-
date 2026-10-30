@@ -5,6 +5,7 @@ import { InviteService } from '../src/services/invite-service.js';
 import { SettingsService } from '../src/services/settings-service.js';
 import { ADMIN, OrderService, RequisitesNotSentError, StaleOrderError } from '../src/services/order-service.js';
 import { balanceOf } from '../src/services/ledger-service.js';
+import { makeKeyring } from '../src/services/crypto.js';
 import { RATE_SCALE } from '../src/domain/pricing.js';
 
 // Запуск: TEST_DATABASE_URL=postgresql://... pnpm test  (БД с применёнными миграциями; данные очищаются!)
@@ -68,7 +69,7 @@ describe.skipIf(!url)('db integration', () => {
   it('concurrent admin clicks on the same order version: exactly one wins, ledger written once', async () => {
     const rates = { getRate: async (currency: string) => ({ currency, scaled: 90n * RATE_SCALE, source: 'MANUAL' as const, at: new Date() }) };
     const settings = new SettingsService(db);
-    const orders = new OrderService(db, rates, settings, Buffer.alloc(32, 1));
+    const orders = new OrderService(db, rates, settings, makeKeyring(1, Buffer.alloc(32, 1)));
     const admin = await db.user.findFirstOrThrow({ where: { role: 'ADMIN' } });
     const client = await db.user.findFirstOrThrow({ where: { role: 'CLIENT' } });
     const before = await balanceOf(db, client.id);
@@ -92,5 +93,39 @@ describe.skipIf(!url)('db integration', () => {
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     for (const r of results) if (r.status === 'rejected') expect(r.reason).toBeInstanceOf(StaleOrderError);
     expect(await balanceOf(db, client.id)).toBe(before + quoted.totalMinor!);
+  });
+
+  it('key rotation re-encrypts gift codes, is idempotent, and does not touch undecryptable rows', async () => {
+    const { randomBytes } = await import('node:crypto');
+    const { decrypt, encrypt } = await import('../src/services/crypto.js');
+    const { rotateGiftCodes } = await import('../src/services/key-rotation.js');
+    const k1 = randomBytes(32);
+    const k2 = randomBytes(32);
+    const ringOld = makeKeyring(1, k1);
+    const ringNew = makeKeyring(2, k2, new Map([[1, k1]]));
+    const client = await db.user.findFirstOrThrow({ where: { role: 'CLIENT' } });
+    const mk = (code: string, ring = ringOld) =>
+      db.order.create({
+        data: { clientId: client.id, type: 'GIFT_CARD', service: 'S', giftCodeEnc: new Uint8Array(encrypt(code, ring)), amountMinor: 100n, currency: 'USD' },
+      });
+    const a = await mk('CODE-A');
+    const b = await mk('CODE-B');
+    const done = await mk('CODE-NEW', ringNew);
+    const orphan = await mk('CODE-ORPHAN', makeKeyring(7, randomBytes(32))); // ключ 7 утерян
+
+    const dry = await rotateGiftCodes(db, ringNew, { dryRun: true });
+    expect(dry).toMatchObject({ rotated: 2, alreadyCurrent: 1, failed: [orphan.id] });
+    expect(decrypt((await db.order.findUniqueOrThrow({ where: { id: a.id } })).giftCodeEnc!, ringOld)).toBe('CODE-A'); // dry-run ничего не менял
+
+    const real = await rotateGiftCodes(db, ringNew);
+    expect(real).toMatchObject({ rotated: 2, alreadyCurrent: 1, failed: [orphan.id] });
+    for (const [id, code] of [[a.id, 'CODE-A'], [b.id, 'CODE-B']] as const) {
+      const enc = (await db.order.findUniqueOrThrow({ where: { id } })).giftCodeEnc!;
+      expect(enc[2]).toBe(2);
+      expect(decrypt(enc, makeKeyring(2, k2))).toBe(code); // читается одним новым ключом, старый больше не нужен
+    }
+    expect(Buffer.from((await db.order.findUniqueOrThrow({ where: { id: done.id } })).giftCodeEnc!)).toBeTruthy();
+
+    expect(await rotateGiftCodes(db, ringNew)).toMatchObject({ rotated: 0, alreadyCurrent: 3, failed: [orphan.id] }); // повтор — ничего не делает
   });
 });

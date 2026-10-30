@@ -4,6 +4,7 @@ import { t } from '../../texts/ru.js';
 import { buildClientMenu } from '../keyboards/menu.js';
 import { InlineKeyboard } from 'grammy';
 import { o as ot } from '../../texts/orders.js';
+import { safeError } from '../../logging/safe-error.js';
 
 const html = { parse_mode: 'HTML' as const };
 
@@ -40,7 +41,7 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
     const adminChat = deps.config.ADMIN_CHAT_ID ?? deps.config.ADMIN_TELEGRAM_ID;
     await ctx.api
       .sendMessage(Number(adminChat), t.newClientNotice(res.user), html)
-      .catch((e: unknown) => deps.log.warn({ err: (e as Error).message }, 'admin notify failed'));
+      .catch((e: unknown) => deps.log.warn({ ...safeError(e) }, 'admin notify failed'));
   });
 
   c.command('app', async (ctx) => {
