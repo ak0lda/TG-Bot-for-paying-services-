@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { loadConfig } from './config.js';
 import { mask, safeError } from './logging/safe-error.js';
 import { al } from './texts/rates.js';
@@ -10,7 +11,13 @@ import { buildDeps } from './app.js';
 import { createBot } from './bot/index.js';
 import { createHttpServer } from './http/server.js';
 
+/** Локальный запуск (`pnpm dev`/`pnpm start`): подхватываем .env. В Docker файла нет — переменные задаёт compose. */
+function loadDotEnv(): void {
+  if (existsSync('.env') && typeof process.loadEnvFile === 'function') process.loadEnvFile('.env');
+}
+
 async function main(): Promise<void> {
+  loadDotEnv();
   const config = loadConfig();
   const log = createLogger(config);
   const db = createDb(config.DATABASE_URL);

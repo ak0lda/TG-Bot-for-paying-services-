@@ -36,7 +36,7 @@ jobs:
       - uses: pnpm/action-setup@v4 # версия pnpm берётся из packageManager в package.json
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       # Для тестов скриптов бэкапа нужны age и клиент PostgreSQL (pg_dump/psql).
       - name: System tools for backup tests
@@ -60,7 +60,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Падаем на уязвимостях уровня high и выше в продовых зависимостях.
