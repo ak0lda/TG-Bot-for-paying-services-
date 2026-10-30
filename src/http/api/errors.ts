@@ -1,6 +1,7 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import type { Logger } from '../../logger.js';
+import type { AlertService } from '../../services/alerts.js';
 import { InvalidTransitionError } from '../../domain/order-fsm.js';
 import {
   ForbiddenError, OrderDataError, OrderNotFoundError, PayLaterDeniedError, PayLaterLimitError, RenewalExistsError, RequisitesNotAllowedError, RequisitesNotSentError, StaleOrderError,
@@ -46,7 +47,7 @@ export function toApiError(e: unknown): ApiError | null {
   return null;
 }
 
-export function errorHandler(log: Logger) {
+export function errorHandler(log: Logger, alerts?: AlertService) {
   return (error: FastifyError | Error, req: FastifyRequest, reply: FastifyReply) => {
     const api = toApiError(error);
     if (api) return reply.code(api.status).send({ error: api.code, message: api.message, ...api.extra });
@@ -55,6 +56,7 @@ export function errorHandler(log: Logger) {
     }
     // Без тела запроса и заголовков: только технические данные.
     log.error({ ...safeError(error), method: req.method, route: req.routeOptions?.url }, 'api request failed');
+    void alerts?.error(`api:${req.routeOptions?.url}:${safeError(error).err}`, 'Ошибка Mini App API', error, `маршрут: ${req.method} ${req.routeOptions?.url ?? '?'}`);
     return reply.code(500).send({ error: 'internal', message: 'Внутренняя ошибка' });
   };
 }

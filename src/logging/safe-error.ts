@@ -20,6 +20,16 @@ const MAX = 160;
 export const mask = (s: string): string => s.replace(TOKEN_RE, '[token]').replace(LONG_DIGITS_RE, '[num]');
 const firstLine = (s: string): string => mask(s.split('\n')[0] ?? '').slice(0, MAX);
 
+/** «src/bot/x.ts:123» — первое место в нашем коде из стека (без абсолютных путей). */
+export function codeLocation(stack: string | undefined): string | undefined {
+  for (const line of (stack ?? '').split('\n').slice(1)) {
+    if (line.includes('node_modules')) continue; // dist/ внутри зависимостей — не наш код
+    const m = /((?:src|dist)\/[^\s:()]+):(\d+):\d+/.exec(line);
+    if (m) return `${m[1]}:${m[2]}`;
+  }
+  return undefined;
+}
+
 export function safeError(e: unknown): SafeError {
   if (e instanceof GrammyError) {
     return { err: `GrammyError ${e.error_code} ${e.method}: ${firstLine(e.description).slice(0, 80)}`, code: String(e.error_code) };
@@ -36,7 +46,11 @@ export function safeError(e: unknown): SafeError {
     }
     if (e.name === 'ZodError') return { err: 'ZodError (validation)' };
     const name = e.name && e.name !== 'Error' ? e.name : e.constructor.name;
-    return { err: `${name}: ${firstLine(e.message)}`.slice(0, MAX), ...(codeStr ? { code: codeStr } : {}) };
+    const loc = codeLocation(e.stack);
+    const at = loc ? ` @${loc}` : '';
+    // Сообщения SyntaxError (JSON.parse и т.п.) цитируют фрагмент входных данных — их не пишем.
+    if (e instanceof SyntaxError) return { err: `SyntaxError${at}` };
+    return { err: `${name}: ${firstLine(e.message)}${at}`.slice(0, MAX + 60), ...(codeStr ? { code: codeStr } : {}) };
   }
   return { err: `non-error thrown: ${typeof e}` };
 }

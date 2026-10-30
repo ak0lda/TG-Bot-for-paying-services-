@@ -37,6 +37,9 @@ const schema = z
     ENCRYPTION_KEY_ID: z.coerce.number().int().min(1).max(255).default(1),
     /** Старые ключи для чтения ещё не перешифрованных данных: "1:<base64>,2:<base64>". */
     ENCRYPTION_KEYS_OLD: z.preprocess(emptyToUndefined, z.string().optional()),
+    /** Каталог с бэкапами (только чтение): бот следит, что бэкап делается и свежий. Пусто — проверка отключена. */
+    BACKUP_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
+    BACKUP_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(24 * 14).default(36),
     TIMEZONE: z.string().default('Europe/Moscow'),
     /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
     WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),

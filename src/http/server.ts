@@ -24,7 +24,7 @@ export async function createHttpServer(opts: { deps: Deps; bot: Bot<BotContext> 
   app.get('/health', async (_req, reply) => {
     try {
       await db.$queryRaw`SELECT 1`;
-      return { ok: true };
+      return { ok: true, uptimeSec: Math.floor(process.uptime()) };
     } catch {
       return reply.code(503).send({ ok: false });
     }

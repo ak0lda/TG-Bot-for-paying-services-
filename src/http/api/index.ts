@@ -23,7 +23,7 @@ export async function registerApi(app: FastifyInstance, deps: Deps): Promise<voi
 
   await app.register(
     async (api) => {
-      api.setErrorHandler(errorHandler(deps.log));
+      api.setErrorHandler(errorHandler(deps.log, deps.alerts));
       api.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: 'not_found', message: 'Не найдено' }));
       api.addHook('onSend', async (_req, reply) => {
         reply.header('Cache-Control', 'no-store');

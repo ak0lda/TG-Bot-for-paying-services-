@@ -4,12 +4,14 @@ import { debtOf } from '../domain/ledger.js';
 import { balancesByClient } from './ledger-service.js';
 import { b } from '../texts/balance.js';
 import { r } from '../texts/reports.js';
+import { al, rw } from '../texts/rates.js';
+import { readBackupStatus } from './backup-health.js';
 import { o as ot } from '../texts/orders.js';
 import { safeError } from '../logging/safe-error.js';
 
 const SWEEP_MS = 5 * 60 * 1000;
 
-type SchedulerDeps = Pick<Deps, 'orders' | 'presenter' | 'log' | 'db' | 'settings' | 'notifier' | 'config'>;
+type SchedulerDeps = Pick<Deps, 'orders' | 'presenter' | 'log' | 'db' | 'settings' | 'notifier' | 'config' | 'alerts' | 'rates'>;
 
 const localHour = (now: Date, tz: string): number =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hour12: false }).format(now)) % 24;
@@ -83,8 +85,31 @@ export async function purgeGiftCodes(deps: Pick<SchedulerDeps, 'db'>, now: Date 
   return res.count;
 }
 
+/**
+ * Самодиагностика: свежесть бэкапов и актуальность курсов ЦБ. Оповещения админу (с паузой между повторами),
+ * без персональных данных. `startedAt` нужен, чтобы не тревожиться об отсутствии первого бэкапа сразу после запуска.
+ */
+export async function runHealthChecks(deps: SchedulerDeps, startedAt: Date, now: Date = new Date()): Promise<void> {
+  const { BACKUP_DIR, BACKUP_MAX_AGE_HOURS } = deps.config;
+  if (BACKUP_DIR) {
+    const st = await readBackupStatus(BACKUP_DIR, now, BACKUP_MAX_AGE_HOURS);
+    const HALF_DAY = 12 * 3_600_000;
+    if (st.state === 'failed') await deps.alerts.alert('backup:failed', al.backup.failed(st.ageHours, st.reason), HALF_DAY);
+    else if (st.state === 'stale') await deps.alerts.alert('backup:stale', al.backup.stale(st.ageHours, BACKUP_MAX_AGE_HOURS), HALF_DAY);
+    else if (st.state === 'missing' && now.getTime() - startedAt.getTime() > BACKUP_MAX_AGE_HOURS * 3_600_000) {
+      await deps.alerts.alert('backup:missing', al.backup.missing(BACKUP_MAX_AGE_HOURS), HALF_DAY);
+    }
+  }
+
+  await deps.rates.refresh(); // скачки и недоступность ЦБ замечаются без участия клиентов
+  const age = await deps.rates.cbrAgeHours();
+  const staleAfter = (await deps.settings.getAll()).rateStaleHours;
+  if (age !== null && age > staleAfter) await deps.alerts.alert('rates:stale', rw.alertStale(Math.floor(age)), 6 * 3_600_000);
+}
+
 /** Планировщик: истечение расчётов, напоминания (долги, подписки), очистка кодов подарочных карт. */
 export function startScheduler(deps: SchedulerDeps): () => void {
+  const startedAt = new Date();
   const sweep = async () => {
     try {
       for (const o of await deps.orders.expireDue()) {
@@ -94,8 +119,10 @@ export function startScheduler(deps: SchedulerDeps): () => void {
       await sendSubscriptionReminders(deps);
       const purged = await purgeGiftCodes(deps);
       if (purged > 0) deps.log.info({ purged }, 'gift codes purged');
+      await runHealthChecks(deps, startedAt);
     } catch (e) {
       deps.log.error({ ...safeError(e) }, 'scheduler sweep failed');
+      void deps.alerts.error(`scheduler:${safeError(e).err}`, 'Сбой планировщика (напоминания, истечение расчётов)', e);
     }
   };
   void sweep();
