@@ -151,7 +151,7 @@ describe.skipIf(!url)('/fx — buffer advice from real settlement differences', 
         url: `/api${path}`,
         headers: { authorization: `tma ${buildSignedInitData({ id, first_name: 'U' }, BOT_TOKEN)}` },
       });
-      return { status: r.statusCode, json: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      return { status: r.statusCode, json: r.json() as any };
     };
     expect((await call(CLIENT, '/admin/fx')).status).toBe(403);
     const ok = await call(ADMIN, '/admin/fx?days=60');

@@ -67,7 +67,9 @@ describe('order FSM', () => {
   it('rejects skipping states', () => {
     expect(canTransition(o('NEW'), 'DONE', 'ADMIN')).toBe(false);
     expect(canTransition(o('QUOTED'), 'DONE', 'ADMIN')).toBe(false);
-    expect(canTransition(o('AWAITING_PAYMENT'), 'IN_PROGRESS', 'ADMIN')).toBe(false);
+    // админ может подтвердить поступление, не дожидаясь «Я оплатил» клиента; клиент — нет
+    expect(canTransition(o('AWAITING_PAYMENT'), 'IN_PROGRESS', 'ADMIN')).toBe(true);
+    expect(canTransition(o('AWAITING_PAYMENT'), 'IN_PROGRESS', 'CLIENT')).toBe(false);
   });
 
   it('lists allowed transitions', () => {

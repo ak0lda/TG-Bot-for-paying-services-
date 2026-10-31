@@ -6,6 +6,7 @@ import { commonHandlers } from './handlers/common.js';
 import { adminHandlers } from './handlers/admin.js';
 import { adminCatalogHandlers } from './handlers/admin-catalog.js';
 import { adminReportHandlers } from './handlers/admin-reports.js';
+import { bankMatchHandlers, handleBankText } from './handlers/bank-text.js';
 import { requisitesHandlers } from './handlers/requisites.js';
 import { subscriptionHandlers } from './handlers/subscriptions.js';
 import { balanceHandlers } from './handlers/balance.js';
@@ -32,6 +33,7 @@ export function createBot(deps: Deps, opts: BotOptions = {}): Bot<BotContext> {
   bot.use(adminFinanceHandlers(deps));
   bot.use(adminReportHandlers(deps));
   bot.use(requisitesHandlers(deps));
+  bot.use(bankMatchHandlers(deps));
   bot.use(balanceHandlers(deps));
   bot.use(subscriptionHandlers(deps));
   bot.use(orderCallbacks(deps));
@@ -43,6 +45,9 @@ export function createBot(deps: Deps, opts: BotOptions = {}): Bot<BotContext> {
   bot.on('message', async (ctx) => {
     if (ctx.message.text?.startsWith('/')) return void (await ctx.reply(ot.unknown));
     if (await deps.wizards.onMessage(ctx)) return;
+    // Админ пересылает уведомление банка — ищем заявку и предлагаем подтвердить поступление.
+    if (ctx.appUser?.role === 'ADMIN' && ctx.message.text && (await handleBankText(ctx, deps, ctx.message.text)))
+      return;
     await ctx.reply(ot.unknown);
   });
 

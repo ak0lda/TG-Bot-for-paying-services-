@@ -210,6 +210,8 @@ export class Presenter {
         // Способ перевода выбирает админ: кнопка на каждый активный способ (повторное нажатие — отправить реквизиты снова).
         for (const m of await this.deps.catalog.listMethods(true))
           kb.text(ot.requisitesBtn(m.title), `r:${o.id}:${o.version}:${m.id}`).row();
+        // Реквизиты отправлены — можно подтвердить поступление, не дожидаясь «Я оплатил» от клиента.
+        if (o.payMethodId) kb.text('✅ Оплата получена', cb('pc')).row();
         break;
       }
       case 'NEW':

@@ -31,12 +31,16 @@ export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscript
   return [...new Set(out)];
 }
 
-export function adminActions(o: Pick<Order, 'status' | 'payMode'>): AdminAction[] {
+export function adminActions(o: Pick<Order, 'status' | 'payMode' | 'payMethodId'>): AdminAction[] {
   const out: AdminAction[] = [];
   for (const to of allowedTransitions(o, 'ADMIN')) {
     if (to === 'QUOTED') out.push('quote');
-    else if (to === 'IN_PROGRESS' && o.status === 'PAYMENT_CHECK') out.push('confirm_payment');
-    else if (to === 'AWAITING_PAYMENT') out.push('payment_not_found');
+    else if (
+      to === 'IN_PROGRESS' &&
+      (o.status === 'PAYMENT_CHECK' || (o.status === 'AWAITING_PAYMENT' && o.payMethodId != null))
+    ) {
+      out.push('confirm_payment');
+    } else if (to === 'AWAITING_PAYMENT') out.push('payment_not_found');
     else if (to === 'DONE') out.push('complete');
     else if (to === 'LINK_INVALID') out.push('link_invalid');
     else if (to === 'REJECTED') out.push('reject');

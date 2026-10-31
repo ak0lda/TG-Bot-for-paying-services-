@@ -42,6 +42,8 @@ export const TRANSITIONS: readonly Transition[] = [
   T('AWAITING_PAYMENT', 'PAYMENT_CHECK', ['CLIENT']),
   T('AWAITING_PAYMENT', 'EXPIRED', ['SYSTEM']),
   T('PAYMENT_CHECK', 'IN_PROGRESS', ['ADMIN']),
+  // Админ увидел поступление (в банке/по пересланному уведомлению) раньше, чем клиент нажал «Я оплатил».
+  T('AWAITING_PAYMENT', 'IN_PROGRESS', ['ADMIN']),
   T('PAYMENT_CHECK', 'AWAITING_PAYMENT', ['ADMIN']),
   T('IN_PROGRESS', 'DONE', ['ADMIN']),
   T('IN_PROGRESS', 'LINK_INVALID', ['ADMIN']),

@@ -27,7 +27,7 @@ describe.skipIf(!url)('/calc, service suggestions, re-order', () => {
       headers: { authorization: `tma ${buildSignedInitData({ id, first_name: 'U' }, BOT_TOKEN)}` },
       ...(body !== undefined ? { payload: body as object } : {}),
     });
-    return { status: r.statusCode, json: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+    return { status: r.statusCode, json: r.json() as any };
   };
 
   async function newOrder(service = 'Netflix', amount = '10 USD', period = 'ONE') {

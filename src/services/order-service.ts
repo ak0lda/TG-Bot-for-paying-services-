@@ -435,6 +435,8 @@ export class OrderService {
   async confirmPayment(orderId: number, version: number, adminId: number): Promise<OrderWithClient> {
     return this.run(orderId, version, ADMIN(adminId), (_tx, o) => {
       if (o.totalMinor == null) throw new OrderDataError('order is not quoted');
+      // Подтверждать поступление до отправки реквизитов нельзя: способ и сумма к переводу ещё не определены.
+      if (o.status === 'AWAITING_PAYMENT' && o.payMethodId == null) throw new RequisitesNotSentError();
       const due = o.payDueMinor ?? o.totalMinor;
       const ledger: LedgerInput[] = [
         { type: 'PAYMENT_RECEIVED', amountMinor: due, comment: `Оплата заявки #${orderId}` },

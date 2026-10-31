@@ -29,7 +29,15 @@ describe('adviseFxBuffer', () => {
     // 20 заявок: большинство около +0,3…0,6%, две выбросные
     const slips = [10, 20, 25, 30, 30, 35, 40, 40, 45, 45, 50, 50, 55, 55, 60, 60, 65, 70, 150, 240];
     const a = adviseFxBuffer(mk(slips), 200);
-    expect(a).toMatchObject({ sample: 20, enough: true, currentBp: 200, medianBp: 45, p90Bp: 70, maxBp: 240, recommendedBp: 70 });
+    expect(a).toMatchObject({
+      sample: 20,
+      enough: true,
+      currentBp: 200,
+      medianBp: 45,
+      p90Bp: 70,
+      maxBp: 240,
+      recommendedBp: 70,
+    });
     expect(a.surchargeShare).toBeCloseTo(0.05, 5); // при 2%: доплата только в 1 из 20 (240 б.п.)
     expect(a.recommendedSurchargeShare).toBeCloseTo(0.1, 5); // при 0,7%: 2 из 20 (150 и 240)
   });
