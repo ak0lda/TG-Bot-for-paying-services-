@@ -1,4 +1,4 @@
-import type { Balance, Me, Order, Stats, Suggestion } from './types';
+import type { Balance, FxAdvice, Me, Order, Stats, Suggestion } from './types';
 
 export class ApiError extends Error {
   constructor(
@@ -66,5 +66,6 @@ export const api = {
       body,
     ),
   adminRate: (cur: string) => get<{ currency: string; rate: string; source: string }>(`/admin/rate/${cur}`),
+  fx: (days: number) => get<FxAdvice>(`/admin/fx?days=${days}`),
   stats: (period: string) => get<Stats>(`/admin/stats?period=${encodeURIComponent(period)}`),
 };

@@ -168,6 +168,13 @@ export function adminRoutes(deps: Deps) {
       return { currency: cur, rate: formatRate(rate.scaled), scaled: rate.scaled.toString(), source: rate.source };
     });
 
+    /** Рекомендация по запасу на конвертацию (только чтение; применяется в боте командой /fx). */
+    app.get('/fx', async (req) => {
+      const q = z.object({ days: z.coerce.number().int().min(7).max(365).default(60) }).parse(req.query);
+      const { overall, byCurrency } = await deps.reports.fxAdvice(q.days);
+      return { days: q.days, ...overall, byCurrency };
+    });
+
     app.get('/stats', async (req) => {
       const q = z.object({ period: z.string().max(30).default('month') }).parse(req.query);
       const range = parseRange(q.period, new Date(), deps.config.TIMEZONE);

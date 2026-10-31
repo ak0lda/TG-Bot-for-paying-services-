@@ -25,7 +25,7 @@ export const t = {
     '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n' +
     '/domain_ban &lt;домен&gt; [причина] · /domain_unban · /banned — чёрный список ссылок\n\n' +
     '/orders — открытые заявки · /calc 15,99 USD — оценка стоимости\n' +
-    '/stats [период] · /export [период] · /subs\n' +
+    '/stats [период] · /export [период] · /subs · /fx [дней] — подбор запаса на конвертацию\n' +
     '/debts — долги и переплаты · /client &lt;id&gt; — карточка клиента\n' +
     '/adjust &lt;id&gt; &lt;±сумма&gt; [комментарий] — корректировка баланса\n' +
     '/rate [ВАЛ [курс|clear]] — курсы\n' +

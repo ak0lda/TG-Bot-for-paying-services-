@@ -1,11 +1,12 @@
-import { Composer, InputFile } from 'grammy';
+import { Composer, InlineKeyboard, InputFile } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { parseRange } from '../../domain/range.js';
-import { r } from '../../texts/reports.js';
+import { o as ot } from '../../texts/orders.js';
+import { fx as fxt, r } from '../../texts/reports.js';
 
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
-const ADMIN_COMMANDS = ['stats', 'export', 'subs'];
+const ADMIN_COMMANDS = ['stats', 'export', 'subs', 'fx'];
 
 export function adminReportHandlers(deps: Deps): Composer<BotContext> {
   const outer = new Composer<BotContext>();
@@ -50,6 +51,29 @@ export function adminReportHandlers(deps: Deps): Composer<BotContext> {
     await ctx.reply([r.subsTitle, ...subs.map((s) => r.subLine(s, tz))].join('\n'), html);
   });
 
+  c.command('fx', async (ctx) => {
+    const raw = ctx.match.trim();
+    const days = raw === '' ? 60 : /^\d{1,3}$/.test(raw) ? Number(raw) : NaN;
+    if (!(days >= 7 && days <= 365)) return void (await ctx.reply(fxt.usage));
+    const advice = await deps.reports.fxAdvice(days);
+    const kb = new InlineKeyboard();
+    if (advice.overall.enough && advice.overall.recommendedBp !== advice.overall.currentBp) {
+      kb.text(fxt.apply(advice.overall.recommendedBp), `fx:${advice.overall.recommendedBp}`);
+    }
+    await ctx.reply(fxt.report(days, advice.overall, advice.byCurrency), { ...html, reply_markup: kb });
+  });
+
   outer.command(ADMIN_COMMANDS, requireAdmin, c);
+
+  // Явное применение рекомендации — только админ, одним нажатием (запас меняется для новых расчётов).
+  outer.callbackQuery(/^fx:(\d{1,4})$/, async (ctx) => {
+    if (ctx.appUser?.role !== 'ADMIN') return void (await ctx.answerCallbackQuery({ text: ot.forbidden }));
+    const bp = Number(ctx.match[1]);
+    if (bp > 1000) return void (await ctx.answerCallbackQuery({ text: ot.invalidAction }));
+    await deps.settings.set('fxBufferBp', bp);
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => undefined);
+    await ctx.reply(fxt.applied(bp));
+  });
   return outer;
 }

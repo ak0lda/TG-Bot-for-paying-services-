@@ -402,6 +402,40 @@ export function StatsScreen() {
       {loading && !data && <Spinner />}
       {error && <ErrorBox text={error} onRetry={reload} />}
       {data && <StatsBody s={data} />}
+      <FxCard />
+    </>
+  );
+}
+
+const pctBp = (bp: number) => `${(bp / 100).toFixed(bp % 100 === 0 ? 0 : 1).replace('.', ',')}%`;
+
+/** Подбор запаса на конвертацию по фактическим разницам (применяется командой /fx в чате). */
+function FxCard() {
+  const { data } = useLoad(() => api.fx(60), []);
+  if (!data) return null;
+  return (
+    <>
+      <h2>Запас на конвертацию</h2>
+      <Card>
+        <Row k="Выполнено за 60 дн.">{data.sample}</Row>
+        <Row k="Сейчас">{pctBp(data.currentBp)}</Row>
+        {data.enough ? (
+          <>
+            <Row k="Клиенты доплачивали">{Math.round(data.surchargeShare * 100)}% заявок</Row>
+            <Row k="Расход к курсу: медиана / 90%">
+              {pctBp(data.medianBp)} / {pctBp(data.p90Bp)}
+            </Row>
+            <Row k="Рекомендация">
+              <b>{pctBp(data.recommendedBp)}</b>
+            </Row>
+            <div className="sub">
+              Применить: команда /fx в чате. Запас не меняет вашу прибыль — только предсказуемость суммы для клиента.
+            </div>
+          </>
+        ) : (
+          <div className="sub">Данных пока мало: нужно хотя бы 10 выполненных заявок.</div>
+        )}
+      </Card>
     </>
   );
 }

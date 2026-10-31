@@ -116,3 +116,16 @@ export interface Suggestion {
   periodDays: number | null;
   source: 'history' | 'preset';
 }
+
+export interface FxAdvice {
+  days: number;
+  sample: number;
+  enough: boolean;
+  currentBp: number;
+  surchargeShare: number;
+  medianBp: number;
+  p90Bp: number;
+  maxBp: number;
+  recommendedBp: number;
+  recommendedSurchargeShare: number;
+}

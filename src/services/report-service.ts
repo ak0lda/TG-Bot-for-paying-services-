@@ -5,6 +5,8 @@ import { moneyCell, text, toCsv } from '../domain/csv.js';
 import type { DateRange } from '../domain/range.js';
 import { computeQuote } from '../domain/pricing.js';
 import { buildStats, type DoneOrder, type Stats } from '../domain/stats.js';
+import { adviseFxBuffer, slipBp, type FxSample } from '../domain/fx-advice.js';
+import { SETTING_DEFS } from '../domain/settings.js';
 import { rateScaledOf } from './order-service.js';
 
 export interface StatsReport {
@@ -13,6 +15,8 @@ export interface StatsReport {
   topUpMinor: bigint;
   repaidMinor: bigint;
 }
+
+const DEFAULT_FX_BUFFER_BP = SETTING_DEFS.fxBufferBp.default;
 
 const between = (range: DateRange) => ({
   ...(range.from ? { gte: range.from } : {}),
@@ -71,6 +75,53 @@ export class ReportService {
       topUpMinor: sum('TOPUP'),
       repaidMinor: sum('DEBT_REPAY'),
     };
+  }
+
+  /**
+   * Проскальзывание конвертации по выполненным заявкам за последние `days` дней:
+   * фактический расход в ₽ против чистой конвертации по курсу расчёта (без запаса и наценки).
+   */
+  async fxSamples(days: number, now: Date = new Date()): Promise<Array<FxSample & { currency: string }>> {
+    const since = new Date(now.getTime() - days * 86_400_000);
+    const events = await this.db.orderEvent.findMany({
+      where: { toStatus: 'DONE', createdAt: { gte: since } },
+      select: { orderId: true },
+    });
+    const orders = await this.db.order.findMany({
+      where: { id: { in: events.map((e) => e.orderId) }, status: 'DONE', rate: { not: null } },
+    });
+    const out: Array<FxSample & { currency: string }> = [];
+    for (const o of orders) {
+      if (o.amountMinor == null || o.diffMinor == null) continue;
+      const rateScaled = rateScaledOf(o);
+      const quote = (fxBufferBp: number) =>
+        computeQuote({ amountMinor: o.amountMinor!, rateScaled, fxBufferBp, markupBp: 0, fixedFeeMinor: 0n })
+          .baseCostMinor;
+      const actual = quote(o.fxBufferBp ?? 0) - o.diffMinor; // расход = оценка с запасом − разница по факту
+      out.push({ slipBp: slipBp(actual, quote(0)), currency: o.actualCurrency ?? '—' });
+    }
+    return out;
+  }
+
+  /** Рекомендация по запасу на конвертацию: общая и по валюте карты. */
+  async fxAdvice(days: number, currentBp?: number, now: Date = new Date()) {
+    const samples = await this.fxSamples(days, now);
+    const current = currentBp ?? (await this.currentFxBufferBp());
+    const overall = adviseFxBuffer(samples, current);
+    const groups = new Map<string, FxSample[]>();
+    for (const s of samples) groups.set(s.currency, [...(groups.get(s.currency) ?? []), s]);
+    const byCurrency = [...groups]
+      .map(([currency, xs]) => {
+        const a = adviseFxBuffer(xs, current);
+        return { currency, sample: a.sample, medianBp: a.medianBp, p90Bp: a.p90Bp };
+      })
+      .sort((a, b) => b.sample - a.sample);
+    return { overall, byCurrency };
+  }
+
+  private async currentFxBufferBp(): Promise<number> {
+    const row = await this.db.setting.findUnique({ where: { key: 'fxBufferBp' } });
+    return typeof row?.value === 'number' ? row.value : DEFAULT_FX_BUFFER_BP;
   }
 
   /** CSV заявок за период (по дате создания). Без ссылок целиком (только домен) и без кодов подарочных карт. */
