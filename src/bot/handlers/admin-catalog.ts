@@ -2,6 +2,7 @@ import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
+import { parsePreset } from '../../domain/preset-parse.js';
 import { detectSecret } from '../../domain/secret-detector.js';
 import { RateUnavailableError } from '../../services/rates.js';
 import { c as ct } from '../../texts/catalog.js';
@@ -29,6 +30,9 @@ const ADMIN_COMMANDS = [
   'method_toggle',
   'method_limits',
   'method_auto',
+  'preset_add',
+  'presets',
+  'preset_del',
   'rate',
 ];
 
@@ -153,6 +157,30 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
     if (!m) return void (await ctx.reply(ct.methodNotFound));
     if (flag && !m.instructions.trim()) return void (await ctx.reply(ct.autoNeedsText));
     await ctx.reply(ct.autoSet(await deps.catalog.updateMethod(id, { autoSend: flag })));
+  });
+
+  // ── Частые сервисы (подсказки клиентам при создании заявки) ──
+  c.command('presets', async (ctx) => {
+    const list = await deps.db.servicePreset.findMany({ orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+    await ctx.reply(list.length ? ct.presetsList(list) : ct.presetsEmpty, html);
+  });
+
+  c.command('preset_add', async (ctx) => {
+    const p = parsePreset(ctx.match);
+    if ('error' in p) return void (await ctx.reply(`${escapeHtml(p.error)}\n${ct.presetUsage}`, html));
+    const last = await deps.db.servicePreset.aggregate({ _max: { sortOrder: true } });
+    try {
+      const created = await deps.db.servicePreset.create({ data: { ...p, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
+      await ctx.reply(ct.presetAdded(created), html);
+    } catch {
+      await ctx.reply(ct.presetExists); // уникальное имя
+    }
+  });
+
+  c.command('preset_del', async (ctx) => {
+    const id = parseId(ctx.match);
+    const res = id === null ? { count: 0 } : await deps.db.servicePreset.deleteMany({ where: { id } });
+    await ctx.reply(res.count === 1 ? ct.presetDeleted : ct.presetNotFound);
   });
 
   // ── Курсы ──────────────────────────────────────────────────

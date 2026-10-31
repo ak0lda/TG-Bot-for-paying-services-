@@ -31,7 +31,8 @@ export const periodLabel = (kind: PeriodKind | null, days: number | null): strin
 /** Человекочитаемое описание кода риска ссылки (хранится в Order.linkRisk через «;»). */
 export function linkRiskText(code: string): string {
   if (code === 'PUNYCODE') return 'домен записан в punycode (xn--) — возможна подмена похожих символов';
-  if (code.startsWith('LOOKALIKE:')) return `домен похож на доверенный ${code.slice('LOOKALIKE:'.length)}, но им не является`;
+  if (code.startsWith('LOOKALIKE:'))
+    return `домен похож на доверенный ${code.slice('LOOKALIKE:'.length)}, но им не является`;
   if (code.startsWith('SAFE_BROWSING:')) {
     const kinds: Record<string, string> = {
       MALWARE: 'вредоносный сайт',
@@ -130,6 +131,17 @@ export const o = {
   payLaterLimit: (limit: string, exposure: string) =>
     `Превышен лимит оплаты позже: лимит ${limit}, с этой заявкой набралось бы ${exposure}. Пополни баланс или выбери другой способ.`,
   debtAfterDone: (debt: string) => `Долг: <b>${debt}</b>. Погасить можно в разделе «💰 Мой баланс».`,
+
+  // ── Подсказки, расчёт, повтор ──
+  asBefore: (what: string) => `Как раньше: ${what}`,
+  estimateLine: (total: string) => `Ориентировочно к оплате: ≈ <b>${total}</b> (точная сумма фиксируется при расчёте)`,
+  calcUsage: 'Использование: /calc 15,99 USD — ориентировочная стоимость в рублях.',
+  calcResult: (amount: string, cur: string, total: string, rate: string) =>
+    `🧮 ${amount} ${cur} ≈ <b>${total}</b>\nКурс: ${rate} ₽. Это ориентир: итог фиксируется, когда админ рассчитает заявку, и действует ограниченное время.`,
+  btnReorder: '🔁 Повторить',
+  reorderCreated: (id: number, src: number) => `Создана заявка #${id} (повтор #${src}). Админ скоро рассчитает сумму.`,
+  adminReorder: (src: number) => `🔁 Повтор заявки #${src}`,
+  reorderNotAllowed: 'Эту заявку повторить нельзя.',
 
   // ── Реквизиты (присылает админ) ──
   waitRequisites: (id: number, due: string) =>

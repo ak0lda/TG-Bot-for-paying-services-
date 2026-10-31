@@ -49,7 +49,10 @@ export function buildDeps(
     catalog,
     notifier,
     alerts,
-    linkSafety: new LinkSafetyService(db, log, { apiKey: config.SAFE_BROWSING_API_KEY, ...(opts.linkSafetyFetch ? { fetchFn: opts.linkSafetyFetch } : {}) }),
+    linkSafety: new LinkSafetyService(db, log, {
+      apiKey: config.SAFE_BROWSING_API_KEY,
+      ...(opts.linkSafetyFetch ? { fetchFn: opts.linkSafetyFetch } : {}),
+    }),
     topups: new TopUpService(db),
     reports: new ReportService(db),
     orders: new OrderService(db, rates, settings, config.keyring),

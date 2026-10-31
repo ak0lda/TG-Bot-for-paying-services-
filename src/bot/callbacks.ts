@@ -11,9 +11,10 @@ export type OrderAction =
   | 'cf' // клиент: подтвердить расчёт
   | 'pd' // клиент: я оплатил
   | 'cx' // клиент: отменить
-  | 'nl'; // клиент: прислать новую ссылку
+  | 'nl' // клиент: прислать новую ссылку
+  | 'ro'; // клиент: повторить заявку
 
-const ACTIONS: readonly string[] = ['v', 'q', 'qf', 'rq', 'pc', 'pn', 'lk', 'dn', 'rj', 'cf', 'pd', 'cx', 'nl'];
+const ACTIONS: readonly string[] = ['v', 'q', 'qf', 'rq', 'pc', 'pn', 'lk', 'dn', 'rj', 'cf', 'pd', 'cx', 'nl', 'ro'];
 
 /** Версия заявки зашита в кнопку: после любого перехода старые кнопки становятся «устаревшими». */
 export const orderCb = (id: number, version: number, action: OrderAction): string => `o:${id}:${version}:${action}`;

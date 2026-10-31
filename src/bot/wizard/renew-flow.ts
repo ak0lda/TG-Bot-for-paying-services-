@@ -11,6 +11,8 @@ import { r } from '../../texts/reports.js';
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 interface RenewData {
+  /** renew — продление подписки; reorder — повтор закрытой заявки. */
+  kind: 'renew' | 'reorder';
   sourceId: number;
   clientId: number;
   needsUrl: boolean;
@@ -31,6 +33,24 @@ export async function startRenew(ctx: BotContext, deps: Deps, source: OrderWithC
   const needsUrl = source.type !== 'GIFT_CARD' && (source.type !== 'OTHER' || !!source.url);
   deps.wizards.cancel(ctx.from!.id);
   await deps.wizards.start(ctx, renewWizard(deps), {
+    kind: 'renew',
+    sourceId: source.id,
+    clientId: source.clientId,
+    needsUrl,
+  } satisfies RenewData);
+}
+
+/** Повтор закрытой заявки: те же данные, свежая ссылка и режим оплаты. */
+export async function startReorder(ctx: BotContext, deps: Deps, source: OrderWithClient): Promise<void> {
+  const repeatable =
+    (source.status === 'DONE' && !source.isSubscription) ||
+    source.status === 'CANCELED' ||
+    source.status === 'REJECTED';
+  if (!repeatable) return void (await ctx.reply(ot.reorderNotAllowed));
+  const needsUrl = source.type !== 'GIFT_CARD' && (source.type !== 'OTHER' || !!source.url);
+  deps.wizards.cancel(ctx.from!.id);
+  await deps.wizards.start(ctx, renewWizard(deps), {
+    kind: 'reorder',
     sourceId: source.id,
     clientId: source.clientId,
     needsUrl,
@@ -76,16 +96,26 @@ function renewWizard(deps: Deps): WizardDef<RenewData> {
     ],
     finish: async (ctx, d) => {
       try {
-        const order = await deps.orders.renew(d.sourceId, d.clientId, {
+        const over = {
           url: d.url ?? null,
           urlDomain: d.domain ?? null,
           linkRisk: d.risks?.length ? d.risks.join(';') : null,
           payMode: d.payMode ?? 'PREPAY',
-        });
-        deps.log.info({ orderId: order.id, from: d.sourceId }, 'subscription renewal created');
+        };
+        const order =
+          d.kind === 'renew'
+            ? await deps.orders.renew(d.sourceId, d.clientId, over)
+            : await deps.orders.reorder(d.sourceId, d.clientId, over);
+        deps.log.info({ orderId: order.id, from: d.sourceId, kind: d.kind }, 'order created from existing');
         const extra = d.url && d.trusted === false ? `\n${ot.untrustedNote}` : '';
-        await ctx.reply(`${r.renewCreated(order.id, d.sourceId)}${extra}`, html);
-        await deps.presenter.notifyAdmin(order, r.adminRenewal(d.sourceId));
+        await ctx.reply(
+          `${d.kind === 'renew' ? r.renewCreated(order.id, d.sourceId) : ot.reorderCreated(order.id, d.sourceId)}${extra}`,
+          html,
+        );
+        await deps.presenter.notifyAdmin(
+          order,
+          d.kind === 'renew' ? r.adminRenewal(d.sourceId) : ot.adminReorder(d.sourceId),
+        );
       } catch (e) {
         if (e instanceof RenewalExistsError) return void (await ctx.reply(r.renewExists(e.order.id)));
         if (!(await handleOrderError(ctx, deps, e))) throw e;

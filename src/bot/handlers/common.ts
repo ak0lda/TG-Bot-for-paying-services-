@@ -1,6 +1,9 @@
 import { Composer } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { t } from '../../texts/ru.js';
+import { estimate } from '../../services/calc.js';
+import { RateUnavailableError } from '../../services/rates.js';
+import { formatMinor, formatRub, parseDecimalToMinor } from '../../domain/money.js';
 import { buildClientMenu } from '../keyboards/menu.js';
 import { InlineKeyboard } from 'grammy';
 import { o as ot } from '../../texts/orders.js';
@@ -55,6 +58,27 @@ export function commonHandlers(deps: Deps): Composer<BotContext> {
     const url = deps.config.WEBAPP_URL;
     if (!url || ctx.access !== 'ok') return void (await ctx.reply(ot.appDisabled));
     await ctx.reply(ot.appOpen, { reply_markup: new InlineKeyboard().webApp(ot.appOpenBtn, url) });
+  });
+
+  c.command('calc', async (ctx) => {
+    if (ctx.access !== 'ok') return void (await ctx.reply(t.accessDenied));
+    const m = /^\s*([\d\s]+(?:[.,]\d{1,2})?)\s*([A-Za-z]{3})?\s*$/.exec(ctx.match);
+    if (!m) return void (await ctx.reply(ot.calcUsage));
+    const cur = (m[2] ?? 'USD').toUpperCase();
+    let amount: bigint;
+    try {
+      amount = parseDecimalToMinor(m[1]!);
+    } catch {
+      return void (await ctx.reply(ot.calcUsage));
+    }
+    if (amount <= 0n || amount > 100_000_000n || cur === 'RUB') return void (await ctx.reply(ot.calcUsage));
+    try {
+      const e = await estimate(deps, amount, cur);
+      await ctx.reply(ot.calcResult(formatMinor(amount), cur, formatRub(e.totalMinor), e.rate), html);
+    } catch (e) {
+      if (e instanceof RateUnavailableError) return void (await ctx.reply(ot.noRate(cur), html));
+      throw e;
+    }
   });
 
   c.command('help', async (ctx) => {

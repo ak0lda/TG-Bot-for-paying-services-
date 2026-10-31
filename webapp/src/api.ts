@@ -1,4 +1,4 @@
-import type { Balance, Me, Order, Stats } from './types';
+import type { Balance, Me, Order, Stats, Suggestion } from './types';
 
 export class ApiError extends Error {
   constructor(
@@ -51,6 +51,11 @@ export const api = {
   createOrder: (body: unknown) => post<OrderRes & { untrustedDomain: boolean }>('/orders', body),
   client: act(''),
   balance: () => get<Balance>('/balance'),
+  suggestions: (type: string) => get<{ suggestions: Suggestion[] }>(`/suggestions?type=${encodeURIComponent(type)}`),
+  calc: (amount: string, currency: string) =>
+    get<{ totalMinor: string; rate: string }>(
+      `/calc?amount=${encodeURIComponent(amount)}&currency=${encodeURIComponent(currency)}`,
+    ),
 
   adminOrders: () => get<{ orders: Order[] }>('/admin/orders'),
   adminOrder: (id: number) => get<OrderRes>(`/admin/orders/${id}`),

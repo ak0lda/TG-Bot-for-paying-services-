@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from './api';
 import { ageOf, formatDate, money, periodText, rub, signedRub } from './format';
 import { backToChat } from './tg';
@@ -54,7 +54,7 @@ export function OrderList({ open }: { open: (id: number) => void }) {
 }
 
 // ── Карточка заявки (клиент) ─────────────────────────────────
-type Panel = null | 'cancel' | 'new_link' | 'renew' | 'receipt';
+type Panel = null | 'cancel' | 'new_link' | 'renew' | 'reorder' | 'receipt';
 
 export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChanged: () => void }) {
   const { data, error, loading, reload, setData } = useLoad(() => api.order(id), [id]);
@@ -144,7 +144,7 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
         </div>
       )}
 
-      {(panel === 'new_link' || panel === 'renew') && (
+      {(panel === 'new_link' || panel === 'renew' || panel === 'reorder') && (
         <Card>
           <Field label="Свежая https-ссылка на оплату">
             <input
@@ -155,7 +155,7 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
               autoComplete="off"
             />
           </Field>
-          {panel === 'renew' && (me.payModes?.length ?? 0) > 1 && (
+          {(panel === 'renew' || panel === 'reorder') && (me.payModes?.length ?? 0) > 1 && (
             <Field label="Способ оплаты">
               <select value={payMode} onChange={(e) => setPayMode(e.target.value)}>
                 {me.payModes?.map((m) => (
@@ -219,6 +219,24 @@ export function OrderDetail({ id, me, onChanged }: { id: number; me: Me; onChang
           Продлить подписку
         </Button>
       )}
+      {o.actions.includes('reorder') && (
+        <Button
+          busy={busy}
+          onClick={() => {
+            if (panel !== 'reorder') return setPanel('reorder');
+            void run(() => api.client(o.id, 'reorder', { url: url || undefined, payMode }), 'Заявка создана').then(
+              (r) => {
+                if (r) {
+                  onChanged();
+                  toast(`Создана заявка #${r.order.id}`);
+                }
+              },
+            );
+          }}
+        >
+          🔁 Повторить
+        </Button>
+      )}
       {o.actions.includes('cancel') && (
         <Button
           kind="danger"
@@ -271,6 +289,42 @@ export function NewOrder({ me, created }: { me: Me; created: (id: number) => voi
   const subscribable = type === 'PAYMENT_LINK' || type === 'OTHER';
   const currency = f.currency === 'OTHER' ? f.other.trim().toUpperCase() : f.currency;
 
+  // Подсказки сервисов (прошлые заявки клиента и «частые сервисы» админа).
+  const { data: sg } = useLoad(() => api.suggestions(type), [type]);
+  const suggestions = sg?.suggestions ?? [];
+  const onService = (e: { target: { value: string } }) => {
+    const name = e.target.value;
+    const hit = suggestions.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+    setF((s) => {
+      const next = { ...s, service: name };
+      if (hit && !s.amount && hit.amountMinor && hit.currency) {
+        // «Как раньше»: подставляем сумму и валюту (только в пустое поле суммы — не затираем ввод).
+        next.amount = (Number(hit.amountMinor) / 100).toString().replace('.', ',');
+        if (CURRENCIES.includes(hit.currency)) next.currency = hit.currency;
+        else {
+          next.currency = 'OTHER';
+          next.other = hit.currency;
+        }
+      }
+      return next;
+    });
+    if (hit?.periodKind && subscribable) setPeriod(hit.periodKind);
+  };
+
+  // Живая оценка стоимости в рублях (с задержкой, чтобы не запрашивать на каждый символ).
+  const [estimateText, setEstimateText] = useState<string | null>(null);
+  useEffect(() => {
+    const amount = f.amount.trim();
+    const timer = window.setTimeout(() => {
+      if (!amount || currency.length !== 3) return setEstimateText(null);
+      api.calc(amount, currency).then(
+        (r) => setEstimateText(`≈ ${rub(r.totalMinor)} по курсу ${r.rate} ₽`),
+        () => setEstimateText(null),
+      );
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [f.amount, currency]);
+
   const submit = async () => {
     setErrors({});
     const body = {
@@ -316,7 +370,17 @@ export function NewOrder({ me, created }: { me: Me; created: (id: number) => voi
         </Field>
       )}
       <Field label={gift ? 'Магазин (App Store, Steam, Amazon…)' : 'Сервис'} error={errors.service}>
-        <input value={f.service} onChange={set('service')} placeholder={gift ? 'Steam' : 'Netflix'} />
+        <input
+          value={f.service}
+          onChange={onService}
+          list="service-suggestions"
+          placeholder={gift ? 'Steam' : 'Netflix'}
+        />
+        <datalist id="service-suggestions">
+          {suggestions.map((x) => (
+            <option key={x.name} value={x.name} />
+          ))}
+        </datalist>
       </Field>
       {gift && (
         <Field label="Регион карты" error={errors.region}>
@@ -336,6 +400,7 @@ export function NewOrder({ me, created }: { me: Me; created: (id: number) => voi
 
       <Field label={gift ? 'Номинал' : 'Сумма на странице оплаты'} error={errors.amount}>
         <input value={f.amount} onChange={set('amount')} inputMode="decimal" placeholder="15,99" />
+        {estimateText && <div className="sub">Ориентировочно к оплате: {estimateText}</div>}
       </Field>
       <Field label="Валюта" error={errors.currency}>
         <select value={f.currency} onChange={set('currency')}>

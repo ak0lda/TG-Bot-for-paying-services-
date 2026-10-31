@@ -6,7 +6,15 @@ import { isTrustedDomain } from '../domain/link-validator.js';
 import { formatMinor, formatRub } from '../domain/money.js';
 import { formatRate } from '../domain/pricing.js';
 import { rateScaledOf, type OrderWithClient } from '../services/order-service.js';
-import { linkRiskText, LINK_REMINDER, STATUS_EMOJI, STATUS_LABEL, TYPE_LABEL, o as ot, periodLabel } from '../texts/orders.js';
+import {
+  linkRiskText,
+  LINK_REMINDER,
+  STATUS_EMOJI,
+  STATUS_LABEL,
+  TYPE_LABEL,
+  o as ot,
+  periodLabel,
+} from '../texts/orders.js';
 import { escapeHtml } from '../texts/ru.js';
 
 export interface View {
@@ -119,6 +127,14 @@ export class Presenter {
       case 'LINK_INVALID':
         kb.text('🔗 Прислать новую ссылку', cb('nl'));
         break;
+      case 'DONE':
+        // Подписку продлевают по напоминанию (renew); обычную заявку можно повторить в один шаг.
+        if (!o.isSubscription) kb.text(ot.btnReorder, cb('ro'));
+        break;
+      case 'CANCELED':
+      case 'REJECTED':
+        kb.text(ot.btnReorder, cb('ro'));
+        break;
       case 'NEW':
       case 'PAYMENT_CHECK':
         kb.text('Отменить', cb('cx'));
@@ -161,7 +177,12 @@ export class Presenter {
       );
     }
     if (o.linkRisk) {
-      lines.push(`⛔ <b>ПОДОЗРИТЕЛЬНАЯ ССЫЛКА:</b>\n${o.linkRisk.split(';').map((c) => `• ${escapeHtml(linkRiskText(c))}`).join('\n')}`);
+      lines.push(
+        `⛔ <b>ПОДОЗРИТЕЛЬНАЯ ССЫЛКА:</b>\n${o.linkRisk
+          .split(';')
+          .map((c) => `• ${escapeHtml(linkRiskText(c))}`)
+          .join('\n')}`,
+      );
     }
     const ageMs = this.now().getTime() - o.createdAt.getTime();
     let age = `Возраст заявки: ${formatAge(ageMs)}`;

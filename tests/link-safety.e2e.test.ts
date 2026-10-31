@@ -7,7 +7,7 @@ import { ADMIN, BOT_TOKEN, CLIENT, createHarness } from './helpers/harness.js';
 const url = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!url)('link safety: blocklist, look-alikes, Safe Browsing', () => {
-  const sbCalls: Array<{ url: string; body: any }> = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const sbCalls: Array<{ url: string; body: any }> = [];
   let sbMode: 'clean' | 'phish' | 'down' = 'clean';
   const sbFetch = (async (u: string, init: { body: string }) => {
     sbCalls.push({ url: String(u), body: JSON.parse(init.body) });
@@ -135,7 +135,7 @@ describe.skipIf(!url)('link safety: blocklist, look-alikes, Safe Browsing', () =
         headers: { authorization: `tma ${buildSignedInitData({ id, first_name: 'U' }, BOT_TOKEN)}` },
         ...(body !== undefined ? { payload: body as object } : {}),
       });
-      return { status: r.statusCode, json: r.json() as any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+      return { status: r.statusCode, json: r.json() as any };
     };
     const good = { type: 'PAYMENT_LINK', service: 'Shop', description: 'Plan', amount: '10', currency: 'USD' };
     const blocked = await call(CLIENT, 'POST', '/orders', { ...good, url: 'https://evil-shop.example.org/pay' });

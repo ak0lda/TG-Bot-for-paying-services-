@@ -24,14 +24,16 @@ export const t = {
     '/settings [ключ значение]\n' +
     '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n' +
     '/domain_ban &lt;домен&gt; [причина] · /domain_unban · /banned — чёрный список ссылок\n\n' +
-    '/orders — открытые заявки\n' +
+    '/orders — открытые заявки · /calc 15,99 USD — оценка стоимости\n' +
     '/stats [период] · /export [период] · /subs\n' +
     '/debts — долги и переплаты · /client &lt;id&gt; — карточка клиента\n' +
     '/adjust &lt;id&gt; &lt;±сумма&gt; [комментарий] — корректировка баланса\n' +
     '/rate [ВАЛ [курс|clear]] — курсы\n' +
+    '/presets · /preset_add · /preset_del — частые сервисы (подсказки)\n' +
     '/cards · /card_add &lt;метка&gt; &lt;ВАЛ&gt; · /card_toggle &lt;id&gt;\n' +
     '/methods · /method_add · /method_edit · /method_limits · /method_auto · /method_receipt · /method_toggle',
-  helpClient: 'Используй кнопки меню: «➕ Новая заявка» и «📋 Мои заявки». /cancel — отменить текущий диалог.',
+  helpClient:
+    'Используй кнопки меню: «➕ Новая заявка» и «📋 Мои заявки». /calc 15,99 USD — прикинуть стоимость, /cancel — отменить текущий диалог.',
 
   newClientNotice: (u: User) =>
     `Новый клиент: #${u.id} ${escapeHtml(u.displayName)}${u.username ? ` (@${escapeHtml(u.username)})` : ''}`,
@@ -76,7 +78,8 @@ export const t = {
   domainExists: 'Такой домен уже в списке.',
   domainRemoved: (d: string) => `Домен удалён: ${escapeHtml(d)}`,
   domainMissing: 'Такого домена нет в списке.',
-  banned: (domain: string, open: number) => `⛔ Домен ${escapeHtml(domain)} в чёрном списке — новые заявки с ним не принимаются.${open ? `\nОткрытых заявок с этим доменом: ${open} — проверь их: /orders` : ''}`,
+  banned: (domain: string, open: number) =>
+    `⛔ Домен ${escapeHtml(domain)} в чёрном списке — новые заявки с ним не принимаются.${open ? `\nОткрытых заявок с этим доменом: ${open} — проверь их: /orders` : ''}`,
   banExists: 'Домен уже в чёрном списке.',
   unbanned: (domain: string) => `Домен ${escapeHtml(domain)} убран из чёрного списка.`,
   bannedEmpty: 'Чёрный список пуст.',

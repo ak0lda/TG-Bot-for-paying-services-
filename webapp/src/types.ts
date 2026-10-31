@@ -1,5 +1,5 @@
 export type Role = 'ADMIN' | 'CLIENT';
-export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew';
+export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew' | 'reorder';
 export type AdminAction =
   'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
 
@@ -105,4 +105,14 @@ export interface Stats {
   byClient: StatRow[];
   byService: StatRow[];
   byCard: Array<{ label: string; currency: string; count: number; chargeMinor: string; rubMinor: string }>;
+}
+
+export interface Suggestion {
+  name: string;
+  type: Order['type'];
+  currency: string | null;
+  amountMinor: string | null;
+  periodKind: 'MONTH' | 'YEAR' | 'CUSTOM' | null;
+  periodDays: number | null;
+  source: 'history' | 'preset';
 }

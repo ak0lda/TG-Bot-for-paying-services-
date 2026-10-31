@@ -11,6 +11,9 @@ import { CLIENT, type OrderWithClient } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
 import { warningText } from '../../texts/rates.js';
 import { r } from '../../texts/reports.js';
+import { estimate } from '../../services/calc.js';
+import { suggestionsFor } from '../../services/suggestions.js';
+import { parseDecimalToMinor } from '../../domain/money.js';
 import { ApiError } from './errors.js';
 import { ledgerDto, orderDto } from './dto.js';
 import { toNewOrderInput } from './order-input.js';
@@ -152,7 +155,14 @@ export function clientRoutes(deps: Deps) {
       if (!link.ok) throw new ApiError(422, `link_${link.error}`, ot.link[link.error], { field: 'url' });
       const safety = await deps.linkSafety.check(link.domain, trustedList);
       if (safety.blocked) throw new ApiError(422, 'link_blocked', ot.link.blocked, { field: 'url' });
-      const updated = await deps.orders.submitNewLink(order.id, body.version, req.actor.id, link.url, link.domain, safety.risks.join(';') || null);
+      const updated = await deps.orders.submitNewLink(
+        order.id,
+        body.version,
+        req.actor.id,
+        link.url,
+        link.domain,
+        safety.risks.join(';') || null,
+      );
       await deps.presenter.notifyAdmin(updated, ot.adminNewLink(updated.id));
       return { order: await dtoFor(updated), untrustedDomain: !link.trusted };
     });
@@ -185,6 +195,77 @@ export function clientRoutes(deps: Deps) {
       }
       const order = await deps.orders.renew(src.id, req.actor.id, { url, urlDomain, linkRisk, payMode: body.payMode });
       await deps.presenter.notifyAdmin(order, r.adminRenewal(src.id));
+      return reply.code(201).send({ order: await dtoFor(order) });
+    });
+
+    // ── Подсказки и калькулятор ──────────────────────────────
+    app.get('/suggestions', async (req) => {
+      const q = z
+        .object({ type: z.enum(['PAYMENT_LINK', 'GIFT_CARD', 'TOP_UP', 'OTHER']).optional() })
+        .parse(req.query);
+      const list = await suggestionsFor(deps.db, req.actor.id, q.type);
+      return {
+        suggestions: list.map((s) => ({
+          name: s.name,
+          type: s.type,
+          currency: s.currency,
+          amountMinor: s.amountMinor?.toString() ?? null,
+          periodKind: s.periodKind,
+          periodDays: s.periodDays,
+          source: s.source,
+        })),
+      };
+    });
+
+    app.get('/calc', async (req) => {
+      const q = z.object({ amount: z.string().min(1).max(20), currency: z.string().length(3) }).parse(req.query);
+      let amount: bigint;
+      try {
+        amount = parseDecimalToMinor(q.amount);
+      } catch {
+        throw new ApiError(422, 'bad_amount', ot.badAmount, { field: 'amount' });
+      }
+      const cur = q.currency.toUpperCase();
+      if (amount <= 0n || amount > 100_000_000n)
+        throw new ApiError(422, 'amount_limit', ot.amountLimit, { field: 'amount' });
+      if (cur === 'RUB') throw new ApiError(422, 'rub_currency', ot.rubCurrency, { field: 'currency' });
+      const e = await estimate(deps, amount, cur); // RateUnavailableError -> 422 rate_unavailable
+      return { totalMinor: e.totalMinor.toString(), rate: e.rate };
+    });
+
+    app.post('/orders/:id/reorder', async (req, reply) => {
+      const body = z
+        .object({
+          url: z.string().trim().max(2048).optional(),
+          payMode: z.enum(['PREPAY', 'BALANCE', 'PAY_LATER']).default('PREPAY'),
+        })
+        .parse(req.body);
+      const src = await ownOrder(req);
+      const needsUrl = src.type !== 'GIFT_CARD' && (src.type !== 'OTHER' || !!src.url);
+      let url: string | null = null;
+      let urlDomain: string | null = null;
+      let linkRisk: string | null = null;
+      if (needsUrl) {
+        if (!body.url) throw new ApiError(422, 'url_required', 'Нужна свежая ссылка на оплату', { field: 'url' });
+        const trustedList = await deps.domains.list();
+        const link = validateLink(body.url, trustedList);
+        if (!link.ok) throw new ApiError(422, `link_${link.error}`, ot.link[link.error], { field: 'url' });
+        const safety = await deps.linkSafety.check(link.domain, trustedList);
+        if (safety.blocked) throw new ApiError(422, 'link_blocked', ot.link.blocked, { field: 'url' });
+        url = link.url;
+        urlDomain = link.domain;
+        linkRisk = safety.risks.join(';') || null;
+      }
+      if (!(await availableModes(deps, req.actor.id)).some((m) => m.mode === body.payMode)) {
+        throw new ApiError(422, 'pay_mode_unavailable', ot.payModeUnavailable, { field: 'payMode' });
+      }
+      const order = await deps.orders.reorder(src.id, req.actor.id, {
+        url,
+        urlDomain,
+        linkRisk,
+        payMode: body.payMode,
+      });
+      await deps.presenter.notifyAdmin(order, ot.adminReorder(src.id));
       return reply.code(201).send({ order: await dtoFor(order) });
     });
 

@@ -9,7 +9,7 @@ import { STATUS_LABEL, TYPE_LABEL, linkRiskText, o as ot } from '../../texts/ord
 const m = (x: bigint | null | undefined): string | null => (x == null ? null : x.toString());
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
-export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew';
+export type ClientAction = 'confirm' | 'pay' | 'cancel' | 'requote' | 'new_link' | 'renew' | 'reorder';
 export type AdminAction =
   'quote' | 'confirm_payment' | 'payment_not_found' | 'link_invalid' | 'complete' | 'reject' | 'send_requisites';
 
@@ -26,6 +26,8 @@ export function clientActions(o: Pick<Order, 'status' | 'payMode' | 'isSubscript
     else if (to === 'IN_PROGRESS' && o.status === 'LINK_INVALID') out.push('new_link');
   }
   if (o.status === 'DONE' && o.isSubscription) out.push('renew');
+  if ((o.status === 'DONE' && !o.isSubscription) || o.status === 'CANCELED' || o.status === 'REJECTED')
+    out.push('reorder');
   return [...new Set(out)];
 }
 

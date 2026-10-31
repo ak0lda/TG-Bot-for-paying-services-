@@ -143,7 +143,7 @@ export function createHarness(
   async function reset() {
     sent.length = 0;
     await db.$executeRawUnsafe(
-      'TRUNCATE "Attachment","LedgerEntry","OrderEvent","Order","TopUp","Invite","Setting","TrustedDomain","PaymentMethod","AdminCard","Reminder","User" RESTART IDENTITY CASCADE',
+      'TRUNCATE "Attachment","LedgerEntry","OrderEvent","Order","TopUp","Invite","Setting","TrustedDomain","PaymentMethod","AdminCard","Reminder","CryptoTransfer","BlockedDomain","ServicePreset","User" RESTART IDENTITY CASCADE',
     );
     await bootstrapDefaults(db);
     deps.wizards.cancel(ADMIN);

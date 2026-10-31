@@ -32,7 +32,10 @@ export class LinkSafetyService {
 
   // ── Чёрный список ───────────────────────────────────────────
   async ban(domain: string, reason?: string): Promise<boolean> {
-    const res = await this.db.blockedDomain.createMany({ data: [{ domain, reason: reason ?? null }], skipDuplicates: true });
+    const res = await this.db.blockedDomain.createMany({
+      data: [{ domain, reason: reason ?? null }],
+      skipDuplicates: true,
+    });
     return res.count === 1;
   }
   async unban(domain: string): Promise<boolean> {
@@ -48,7 +51,8 @@ export class LinkSafetyService {
     if (banned) return { blocked: banned.reason ?? banned.domain, risks: [] };
 
     const risks: string[] = [];
-    for (const f of analyzeDomain(domain, trustedDomains)) risks.push(f.code === 'LOOKALIKE' ? `LOOKALIKE:${f.trusted}` : f.code);
+    for (const f of analyzeDomain(domain, trustedDomains))
+      risks.push(f.code === 'LOOKALIKE' ? `LOOKALIKE:${f.trusted}` : f.code);
     for (const t of await this.safeBrowsing(domain)) risks.push(`SAFE_BROWSING:${t}`);
     return { blocked: null, risks };
   }

@@ -2,8 +2,10 @@ import type { OrderType, PayMode, PeriodKind } from '@prisma/client';
 import type { Deps } from '../context.js';
 import type { Step, WizardDef } from './engine.js';
 import { freeText, linkInput } from './helpers.js';
-import { MoneyParseError, parseDecimalToMinor, formatMinor } from '../../domain/money.js';
+import { MoneyParseError, parseDecimalToMinor, formatMinor, formatRub } from '../../domain/money.js';
 import { availableModes } from './pay-modes.js';
+import { estimate } from '../../services/calc.js';
+import { suggestionsFor, type Suggestion } from '../../services/suggestions.js';
 import { RateUnavailableError } from '../../services/rates.js';
 import { TYPE_LABEL, o as ot, periodLabel, LINK_REMINDER } from '../../texts/orders.js';
 import { escapeHtml } from '../../texts/ru.js';
@@ -15,6 +17,9 @@ export interface OrderDraft {
   urlDomain?: string;
   urlTrusted?: boolean;
   urlRisks?: string[];
+  suggestions?: Suggestion[];
+  suggested?: Suggestion | undefined;
+  periodPrefilled?: boolean;
   service?: string;
   region?: string;
   description?: string;
@@ -77,11 +82,27 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
     },
     {
       key: 'service',
-      prompt: (d) => ({ text: d.type === 'GIFT_CARD' ? ot.stepServiceGift : ot.stepService }),
+      prompt: async (d) => {
+        // Быстрый выбор: то, что клиент уже оплачивал, и «частые сервисы» от админа.
+        d.suggestions = await suggestionsFor(deps.db, d.clientId, d.type);
+        return {
+          text: d.type === 'GIFT_CARD' ? ot.stepServiceGift : ot.stepService,
+          buttons: d.suggestions.map((sg, i) => [{ label: suggestionLabel(sg), value: String(i) }]),
+        };
+      },
       handle: async (input, d, ctx) => {
+        if (input.button !== undefined) {
+          const picked = d.suggestions?.[Number(input.button)];
+          if (!picked) return ot.useButtons;
+          d.service = picked.name;
+          d.suggested = picked;
+          return undefined;
+        }
         const r = await freeText(input, ctx, 2, 80);
         if (!r.ok) return r.error;
         d.service = r.value;
+        // Ввели название вручную, но оно совпало с известным — подсказываем и сумму «как раньше».
+        d.suggested = d.suggestions?.find((sg) => sg.name.trim().toLowerCase() === r.value.toLowerCase());
         return undefined;
       },
     },
@@ -109,8 +130,30 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
     },
     {
       key: 'amount',
-      prompt: (d) => ({ text: ot.stepAmount(d.type === 'GIFT_CARD') }),
+      prompt: (d) => {
+        const sg = d.suggested;
+        const can = sg?.amountMinor != null && sg.currency;
+        return {
+          text: ot.stepAmount(d.type === 'GIFT_CARD'),
+          buttons: can
+            ? [[{ label: ot.asBefore(`${formatMinor(sg.amountMinor!)} ${sg.currency}`), value: 'last' }]]
+            : [],
+        };
+      },
       handle: async (input, d) => {
+        if (input.button === 'last') {
+          const sg = d.suggested;
+          if (!sg?.amountMinor || !sg.currency) return ot.useButtons;
+          d.amountMinor = sg.amountMinor;
+          d.currency = sg.currency;
+          // Периодичность тоже «как раньше» (если у сервиса она была и для этого типа заявки она применима).
+          if (sg.periodKind && (d.type === 'PAYMENT_LINK' || d.type === 'OTHER')) {
+            d.periodChoice = sg.periodKind;
+            if (sg.periodKind === 'CUSTOM') d.periodDays = sg.periodDays ?? undefined;
+            d.periodPrefilled = true;
+          }
+          return undefined;
+        }
         const m = /^\s*([\d\s]+(?:[.,]\d{1,2})?)\s*([A-Za-z]{3})?\s*$/.exec(input.text ?? '');
         if (!m) return ot.badAmount;
         let minor: bigint;
@@ -152,7 +195,7 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
     },
     {
       key: 'period',
-      skip: (d) => d.type === 'GIFT_CARD' || d.type === 'TOP_UP',
+      skip: (d) => d.type === 'GIFT_CARD' || d.type === 'TOP_UP' || d.periodPrefilled === true,
       prompt: () => ({
         text: ot.stepPeriod,
         buttons: [
@@ -215,7 +258,19 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
     },
     {
       key: 'confirm',
-      prompt: (d) => ({ text: summary(d), buttons: [[{ label: ot.sendBtn, value: 'send' }]] }),
+      prompt: async (d) => {
+        // Ориентир по стоимости: итог всё равно фиксируется админом при расчёте.
+        let est = '';
+        try {
+          if (d.amountMinor && d.currency) {
+            const e = await estimate(deps, d.amountMinor, d.currency);
+            est = `\n${ot.estimateLine(formatRub(e.totalMinor))}`;
+          }
+        } catch {
+          /* курса нет — без оценки */
+        }
+        return { text: summary(d) + est, buttons: [[{ label: ot.sendBtn, value: 'send' }]] };
+      },
       handle: async (input) => (input.button === 'send' ? undefined : ot.useButtons),
     },
   ];
@@ -248,6 +303,11 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
       await deps.presenter.notifyAdmin(order, ot.adminNewOrder);
     },
   };
+}
+
+function suggestionLabel(sg: Suggestion): string {
+  const price = sg.amountMinor != null && sg.currency ? ` · ${formatMinor(sg.amountMinor)} ${sg.currency}` : '';
+  return `${sg.source === 'history' ? '🕘' : '⭐'} ${sg.name}${price}`.slice(0, 60);
 }
 
 function summary(d: OrderDraft): string {

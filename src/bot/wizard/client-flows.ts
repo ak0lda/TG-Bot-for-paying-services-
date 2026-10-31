@@ -190,7 +190,14 @@ function newLinkWizard(deps: Deps): WizardDef<NewLinkData> {
     ],
     finish: async (ctx, d) => {
       try {
-        const order = await deps.orders.submitNewLink(d.orderId, d.version, d.clientId, d.url!, d.domain!, d.risks?.join(';') || null);
+        const order = await deps.orders.submitNewLink(
+          d.orderId,
+          d.version,
+          d.clientId,
+          d.url!,
+          d.domain!,
+          d.risks?.join(';') || null,
+        );
         await ctx.reply(ot.newLinkAccepted, html);
         await deps.presenter.notifyAdmin(order, ot.adminNewLink(order.id));
       } catch (e) {

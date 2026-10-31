@@ -1,9 +1,36 @@
 import type { AdminCard, PaymentMethod } from '@prisma/client';
-import { formatRub } from '../domain/money.js';
+import { formatMinor, formatRub } from '../domain/money.js';
 import { formatRate } from '../domain/pricing.js';
 import { escapeHtml } from './ru.js';
 
+const periodShort = (k: string | null, d: number | null) =>
+  k === 'MONTH' ? 'мес' : k === 'YEAR' ? 'год' : k === 'CUSTOM' ? `${d} дн` : '';
+
 export const c = {
+  presetsEmpty: 'Частых сервисов нет. Добавь: /preset_add Netflix | PAYMENT_LINK | USD | 15,99 | MONTH',
+  presetsList: (
+    list: Array<{
+      id: number;
+      name: string;
+      type: string;
+      currency: string | null;
+      amountMinor: bigint | null;
+      periodKind: string | null;
+      periodDays: number | null;
+    }>,
+  ) =>
+    `<b>Частые сервисы</b> (подсказки клиентам)\n${list
+      .map(
+        (p) =>
+          `#${p.id} ${escapeHtml(p.name)} — ${p.type}${p.amountMinor != null ? `, ${formatMinor(p.amountMinor)} ${p.currency}` : ''}${p.periodKind ? `, ${periodShort(p.periodKind, p.periodDays)}` : ''}`,
+      )
+      .join('\n')}\n\nУдалить: /preset_del &lt;id&gt;`,
+  presetUsage:
+    'Формат: /preset_add Название | ТИП | ВАЛ | СУММА | ПЕРИОД — всё, кроме названия, необязательно (- = не задано). Пример: /preset_add Netflix | PAYMENT_LINK | USD | 15,99 | MONTH',
+  presetAdded: (p: { id: number; name: string }) => `Добавлено: #${p.id} ${escapeHtml(p.name)}`,
+  presetExists: 'Сервис с таким названием уже есть.',
+  presetDeleted: 'Удалено.',
+  presetNotFound: 'Не найдено.',
   cardsEmpty: 'Карт нет. Добавь: /card_add Visa ··4417 USD',
   cardLine: (x: AdminCard) =>
     `#${x.id} ${escapeHtml(x.label)} (${x.currency}) — ${x.isActive ? 'активна' : 'выключена'}`,

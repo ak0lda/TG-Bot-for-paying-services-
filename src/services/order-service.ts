@@ -600,6 +600,56 @@ export class OrderService {
     });
   }
 
+  /**
+   * Повтор уже закрытой заявки (выполнена не-подписка, отменена, отклонена): новая заявка с теми же данными.
+   * Ссылку клиент присылает заново, режим оплаты выбирается заново. Подписки продлеваются через renew.
+   */
+  async reorder(
+    sourceId: number,
+    clientId: number,
+    over: { url: string | null; urlDomain: string | null; linkRisk?: string | null; payMode: PayMode },
+  ): Promise<OrderWithClient> {
+    return this.db.$transaction(async (tx) => {
+      const src = await tx.order.findUnique({ where: { id: sourceId } });
+      if (!src) throw new OrderNotFoundError();
+      if (src.clientId !== clientId) throw new ForbiddenError();
+      const repeatable =
+        (src.status === 'DONE' && !src.isSubscription) || src.status === 'CANCELED' || src.status === 'REJECTED';
+      if (!repeatable || src.amountMinor == null || !src.currency) throw new OrderDataError('order cannot be repeated');
+      const order = await tx.order.create({
+        data: {
+          clientId,
+          type: src.type,
+          service: src.service,
+          description: src.description,
+          url: over.url,
+          urlDomain: over.urlDomain,
+          linkRisk: over.linkRisk ?? null,
+          giftStore: src.giftStore,
+          giftRegion: src.giftRegion,
+          amountMinor: src.amountMinor,
+          currency: src.currency,
+          isSubscription: src.isSubscription,
+          periodKind: src.periodKind,
+          periodDays: src.periodDays,
+          comment: src.comment,
+          payMode: over.payMode,
+        },
+        include: { client: true },
+      });
+      await tx.orderEvent.create({
+        data: {
+          orderId: order.id,
+          actorId: clientId,
+          fromStatus: null,
+          toStatus: 'NEW',
+          comment: `Повтор заявки #${src.id}`,
+        },
+      });
+      return order;
+    });
+  }
+
   /** Клиент отказался продлевать: напоминания по этой заявке прекращаются. */
   async stopSubscription(sourceId: number, clientId: number): Promise<boolean> {
     const res = await this.db.order.updateMany({

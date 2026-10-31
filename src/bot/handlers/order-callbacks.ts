@@ -6,12 +6,13 @@ import { rw, warningText } from '../../texts/rates.js';
 import { handleOrderError } from '../errors.js';
 import type { View } from '../presenter.js';
 import { startConfirm, startNewLink, startPaid } from '../wizard/client-flows.js';
+import { startReorder } from '../wizard/renew-flow.js';
 import { startDone, startReject } from '../wizard/admin-flows.js';
 import { ADMIN, CLIENT } from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
 
 const ADMIN_ACTIONS: OrderAction[] = ['q', 'qf', 'pc', 'pn', 'lk', 'dn', 'rj'];
-const CLIENT_ACTIONS: OrderAction[] = ['cf', 'pd', 'cx', 'nl'];
+const CLIENT_ACTIONS: OrderAction[] = ['cf', 'pd', 'cx', 'nl', 'ro'];
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
 
 async function editView(ctx: BotContext, view: View): Promise<void> {
@@ -114,6 +115,10 @@ export function orderCallbacks(deps: Deps): Composer<BotContext> {
         case 'pd':
           deps.wizards.cancel(ctx.from!.id);
           await startPaid(ctx, deps, order);
+          break;
+        case 'ro':
+          deps.wizards.cancel(ctx.from!.id);
+          await startReorder(ctx, deps, order);
           break;
         case 'nl':
           deps.wizards.cancel(ctx.from!.id);
