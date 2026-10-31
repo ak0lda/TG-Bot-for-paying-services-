@@ -76,6 +76,8 @@ export interface NewOrderInput {
 export interface Attached {
   fileId: string;
   fileType: 'photo' | 'document';
+  /** file_unique_id Telegram — по нему находим повторно присланные чеки. */
+  uniqueId?: string | undefined;
 }
 
 export interface CompleteInput {
@@ -383,6 +385,7 @@ export class OrderService {
                 kind: 'RECEIPT',
                 tgFileId: receipt.fileId,
                 tgFileType: receipt.fileType,
+                tgFileUniqueId: receipt.uniqueId ?? null,
                 uploadedById: clientId,
               },
             });
@@ -526,6 +529,7 @@ export class OrderService {
               kind: 'SCREENSHOT',
               tgFileId: input.screenshot.fileId,
               tgFileType: input.screenshot.fileType,
+              tgFileUniqueId: input.screenshot.uniqueId ?? null,
               uploadedById: adminId,
             },
           });

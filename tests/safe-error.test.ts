@@ -80,6 +80,14 @@ describe('safeError', () => {
     expect(codeLocation('Error: x')).toBeUndefined();
   });
 
+  it('masks URLs anywhere in a message (they carry tokens and checkout session ids)', () => {
+    const out = safeError(
+      new Error('GET https://hc-ping.com/abc-secret?x=1 failed, see https://x.io/cs_live_a1b2'),
+    ).err;
+    expect(out).not.toMatch(/secret|cs_live|hc-ping/);
+    expect(out).toContain('[url]');
+  });
+
   it('mask() is idempotent', () => {
     expect(mask(mask('t 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi'))).toBe('t [token]');
   });

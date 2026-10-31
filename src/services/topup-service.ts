@@ -45,6 +45,7 @@ export class TopUpService {
         kind: 'RECEIPT',
         tgFileId: receipt.fileId,
         tgFileType: receipt.fileType,
+        tgFileUniqueId: receipt.uniqueId ?? null,
         uploadedById: clientId,
       },
     });

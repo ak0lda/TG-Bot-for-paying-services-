@@ -15,9 +15,12 @@ export interface SafeError {
 
 const TOKEN_RE = /\b\d{6,12}:[A-Za-z0-9_-]{30,}\b/g;
 const LONG_DIGITS_RE = /\d{9,}/g;
+// Ссылки часто несут секреты (токен в пути, ключ в query: пинг мониторинга, checkout-сессии) — в логи не пишем.
+const URL_RE = /https?:\/\/[^\s"'<>)]+/gi;
 const MAX = 160;
 
-export const mask = (s: string): string => s.replace(TOKEN_RE, '[token]').replace(LONG_DIGITS_RE, '[num]');
+export const mask = (s: string): string =>
+  s.replace(URL_RE, '[url]').replace(TOKEN_RE, '[token]').replace(LONG_DIGITS_RE, '[num]');
 const firstLine = (s: string): string => mask(s.split('\n')[0] ?? '').slice(0, MAX);
 
 /** «src/bot/x.ts:123» — первое место в нашем коде из стека (без абсолютных путей). */

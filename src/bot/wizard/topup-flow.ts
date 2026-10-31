@@ -1,6 +1,7 @@
 import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { notifyAdminTopUp } from '../requisites.js';
+import { findDuplicateReceipts } from '../../services/receipts.js';
 import { autoSendTopUpRequisites } from '../auto-requisites.js';
 import { debtOf } from '../../domain/ledger.js';
 import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
@@ -99,7 +100,7 @@ function receiptWizard(deps: Deps): WizardDef<ReceiptData> {
         prompt: () => ({ text: b.receiptPrompt }),
         handle: async (input, d) => {
           if (!input.file) return ot.needFile;
-          d.receipt = { fileId: input.file.id, fileType: input.file.type };
+          d.receipt = { fileId: input.file.id, fileType: input.file.type, uniqueId: input.file.uniqueId };
           return undefined;
         },
       },
@@ -109,7 +110,15 @@ function receiptWizard(deps: Deps): WizardDef<ReceiptData> {
         const topUp = await deps.topups.addReceipt(d.topUpId, d.clientId, d.receipt!);
         await ctx.reply(b.receiptSent(topUp.id), html);
         await deps.notifier.attachmentToAdmin(d.receipt!, `Чек по пополнению #${topUp.id}`);
-        await notifyAdminTopUp(deps, topUp, b.adminTopUpReceipt(topUp.id));
+        const dups = await findDuplicateReceipts(deps.db, d.receipt!.uniqueId, {
+          topUpId: topUp.id,
+          clientId: topUp.clientId,
+        });
+        await notifyAdminTopUp(
+          deps,
+          topUp,
+          b.adminTopUpReceipt(topUp.id) + (dups.length ? `\n\n${ot.duplicateReceipt(dups)}` : ''),
+        );
       } catch (e) {
         if (e instanceof TopUpNotPendingError) return void (await ctx.reply(b.receiptNotPending));
         throw e;

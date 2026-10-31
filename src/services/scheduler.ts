@@ -6,6 +6,7 @@ import { b } from '../texts/balance.js';
 import { r } from '../texts/reports.js';
 import { al, rw } from '../texts/rates.js';
 import { readBackupStatus } from './backup-health.js';
+import { pingHeartbeat } from './heartbeat.js';
 import { o as ot } from '../texts/orders.js';
 import { safeError } from '../logging/safe-error.js';
 
@@ -128,6 +129,8 @@ export function startScheduler(deps: SchedulerDeps): () => void {
       const purged = await purgeGiftCodes(deps);
       if (purged > 0) deps.log.info({ purged }, 'gift codes purged');
       await runHealthChecks(deps, startedAt);
+      // Пульс только после успешного прохода: если планировщик ломается, внешний мониторинг заметит тишину.
+      await pingHeartbeat(deps.config.HEARTBEAT_URL, deps.log);
     } catch (e) {
       deps.log.error({ ...safeError(e) }, 'scheduler sweep failed');
       void deps.alerts.error(`scheduler:${safeError(e).err}`, 'Сбой планировщика (напоминания, истечение расчётов)', e);

@@ -3,11 +3,17 @@ import type { BotContext, Deps } from '../context.js';
 import type { WizardDef } from './engine.js';
 import { linkInput } from './helpers.js';
 import { handleOrderError } from '../errors.js';
+import { findDuplicateReceipts } from '../../services/receipts.js';
 import { autoSendOrderRequisites } from '../auto-requisites.js';
 import { formatRub } from '../../domain/money.js';
 import { availableOf } from '../../domain/ledger.js';
 import { balanceOf } from '../../services/ledger-service.js';
-import { PayLaterDeniedError, PayLaterLimitError, type OrderWithClient } from '../../services/order-service.js';
+import {
+  PayLaterDeniedError,
+  PayLaterLimitError,
+  type Attached,
+  type OrderWithClient,
+} from '../../services/order-service.js';
 import { o as ot } from '../../texts/orders.js';
 
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
@@ -98,7 +104,7 @@ interface PaidData {
   version: number;
   clientId: number;
   needsReceipt: boolean;
-  receipt?: { fileId: string; fileType: 'photo' | 'document' };
+  receipt?: Attached;
 }
 
 export async function startPaid(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
@@ -122,7 +128,7 @@ function paidWizard(deps: Deps): WizardDef<PaidData> {
         prompt: () => ({ text: ot.sendReceipt }),
         handle: async (input, d) => {
           if (!input.file) return ot.needFile;
-          d.receipt = { fileId: input.file.id, fileType: input.file.type };
+          d.receipt = { fileId: input.file.id, fileType: input.file.type, uniqueId: input.file.uniqueId };
           return undefined;
         },
       },
@@ -132,7 +138,14 @@ function paidWizard(deps: Deps): WizardDef<PaidData> {
         const order = await deps.orders.markPaid(d.orderId, d.version, d.clientId, d.receipt);
         await ctx.reply(ot.paidAccepted(order.id), html);
         if (d.receipt) await deps.notifier.attachmentToAdmin(d.receipt, `Чек по заявке #${order.id}`);
-        await deps.presenter.notifyAdmin(order, ot.adminPaid(order.id));
+        const dups = await findDuplicateReceipts(deps.db, d.receipt?.uniqueId, {
+          orderId: order.id,
+          clientId: order.clientId,
+        });
+        await deps.presenter.notifyAdmin(
+          order,
+          ot.adminPaid(order.id) + (dups.length ? `\n\n${ot.duplicateReceipt(dups)}` : ''),
+        );
       } catch (e) {
         if (!(await handleOrderError(ctx, deps, e, d.orderId))) throw e;
       }

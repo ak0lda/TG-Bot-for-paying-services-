@@ -45,6 +45,8 @@ const schema = z
       .min(1)
       .max(24 * 14)
       .default(36),
+    /** Внешний «пульс» (healthchecks.io / Uptime Kuma push URL): бот вызывает его после каждого успешного прохода планировщика. */
+    HEARTBEAT_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),
     TIMEZONE: z.string().default('Europe/Moscow'),
     /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
     WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),

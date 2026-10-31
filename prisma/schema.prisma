@@ -63,6 +63,11 @@ enum LedgerType {
   DEBT_REPAY
 }
 
+enum TopUpKind {
+  TRANSFER
+  USDT_TRC20
+}
+
 enum TopUpStatus {
   PENDING
   CONFIRMED
@@ -202,6 +207,8 @@ model Order {
   diffMinor         BigInt?
 
   rejectReason     String?
+  /// Результат проверки ссылки (чёрный список, Safe Browsing, похожий домен) — админ видит предупреждение в карточке.
+  linkRisk         String?
   giftCodeEnc      Bytes?
   giftCodeDeleteAt DateTime?
 
@@ -246,21 +253,69 @@ model TopUp {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  attachments Attachment[]
-  ledger      LedgerEntry[]
+  // Крипто-пополнение (USDT TRC-20): счёт на точную сумму, курс фиксируется при создании.
+  kind              TopUpKind @default(TRANSFER)
+  cryptoAmountMicro BigInt?
+  cryptoRateScaled  BigInt?
+  cryptoTxId        String?   @unique
+  expiresAt         DateTime?
+
+  attachments     Attachment[]
+  ledger          LedgerEntry[]
+  cryptoTransfers CryptoTransfer[]
+}
+
+/// Входящий перевод USDT, замеченный в блокчейне. Уникальность txid защищает от двойного зачисления.
+model CryptoTransfer {
+  id             Int      @id @default(autoincrement())
+  txid           String   @unique
+  amountMicro    BigInt
+  fromAddress    String
+  blockTimestamp DateTime
+  topUpId        Int?
+  topUp          TopUp?   @relation(fields: [topUpId], references: [id])
+  /// Оповещение админу о непривязанном переводе уже отправлено.
+  notified       Boolean  @default(false)
+  seenAt         DateTime @default(now())
+
+  @@index([topUpId])
+}
+
+/// Чёрный список доменов: заявки со ссылками на них не принимаются.
+model BlockedDomain {
+  id      Int      @id @default(autoincrement())
+  domain  String   @unique
+  reason  String?
+  addedAt DateTime @default(now())
+}
+
+/// Частые сервисы: подсказки при создании заявки.
+model ServicePreset {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  type        OrderType   @default(PAYMENT_LINK)
+  currency    String?
+  amountMinor BigInt?
+  periodKind  PeriodKind?
+  periodDays  Int?
+  sortOrder   Int         @default(0)
 }
 
 model Attachment {
-  id           Int            @id @default(autoincrement())
-  orderId      Int?
-  order        Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  topUpId      Int?
-  topUp        TopUp?         @relation(fields: [topUpId], references: [id], onDelete: Restrict)
-  kind         AttachmentKind
-  tgFileId     String
-  tgFileType   String         @default("photo")
-  uploadedById Int
-  createdAt    DateTime       @default(now())
+  id             Int            @id @default(autoincrement())
+  orderId        Int?
+  order          Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  topUpId        Int?
+  topUp          TopUp?         @relation(fields: [topUpId], references: [id], onDelete: Restrict)
+  kind           AttachmentKind
+  tgFileId       String
+  tgFileType     String         @default("photo")
+  /// file_unique_id Telegram: один и тот же файл имеет один и тот же id в любых чатах — по нему находим повторные чеки.
+  tgFileUniqueId String?
+  uploadedById   Int
+  createdAt      DateTime       @default(now())
+
+  @@index([tgFileUniqueId])
 }
 
 // Append-only журнал. Баланс = SUM(amountMinor) по clientId.

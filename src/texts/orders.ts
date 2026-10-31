@@ -130,6 +130,15 @@ export const o = {
     `🤖 Заявка #${id}: реквизиты (${escapeHtml(method)}, ${amount}) отправлены клиенту автоматически — сумма подошла под способ. Жди оплату; при необходимости отправь другие реквизиты кнопкой.`,
   adminAutoMiss: (id: number, amount: string) =>
     `⚠️ Заявка #${id}: ${amount} не подходит ни под один способ с автоотправкой — выбери способ и отправь реквизиты вручную.`,
+  duplicateReceipt: (
+    dups: Array<{ kind: 'order' | 'topup'; id: number; clientId: number; clientName: string; otherClient: boolean }>,
+  ) =>
+    `⚠️ <b>Этот чек уже прикладывали раньше</b> — возможно, повторное использование:\n${dups
+      .map(
+        (d) =>
+          `• ${d.kind === 'order' ? 'заявка' : 'пополнение'} #${d.id}, клиент #${d.clientId} ${escapeHtml(d.clientName)}${d.otherClient ? ' — <b>другой клиент!</b>' : ''}`,
+      )
+      .join('\n')}\nСверь сумму и дату перевода в банке.`,
   requisitesSent: (id: number, method: string) =>
     `📤 Реквизиты по заявке #${id} отправлены клиенту (${escapeHtml(method)}).`,
   requisitesNotAllowed: 'Реквизиты можно отправить только пока заявка ждёт оплату.',

@@ -46,3 +46,8 @@ fi
 
 echo "$(date +%s) $(basename "$out") ${size}" >"$DIR/.last_success"
 echo "backup ok: $(basename "$out")"
+
+# Внешний «пульс» бэкапа (dead man's switch): если бэкапы перестанут приходить, мониторинг напишет сам. URL секретный — не логируем.
+if [ -n "${BACKUP_HEARTBEAT_URL:-}" ]; then
+  curl -fsS -m 10 -o /dev/null "$BACKUP_HEARTBEAT_URL" >/dev/null 2>&1 || echo "warning: heartbeat ping failed" >&2
+fi

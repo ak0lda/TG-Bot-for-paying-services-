@@ -195,4 +195,33 @@ describe.skipIf(!url || !tools)('encrypted backup scripts', () => {
     expect(files(bad)).toHaveLength(1); // локальная копия сохранена
     expect(await readBackupStatus(bad, new Date(), 36)).toMatchObject({ state: 'failed' });
   });
+
+  it('pings the external heartbeat only after a successful backup, tolerates a failing ping, and never prints the URL', () => {
+    const shimDir = mkdtempSync(join(work, 'curl-'));
+    const log = join(shimDir, 'curl.log');
+    const shim = join(shimDir, 'curl');
+    writeFileSync(shim, `#!/bin/bash\necho "$@" >> "${log}"\n[ -n "$FAIL_PING" ] && exit 22\nexit 0\n`);
+    chmodSync(shim, 0o755);
+    const url = 'https://hc-ping.com/very-secret-token';
+    const base2 = { PATH: `${shimDir}:${process.env.PATH}`, BACKUP_HEARTBEAT_URL: url };
+
+    const ok = newDir();
+    const r1 = backup(ok, base2);
+    expect(r1.status, r1.stderr).toBe(0);
+    expect(readFileSync(log, 'utf8')).toContain(url);
+    expect(r1.stdout + r1.stderr).not.toContain('very-secret-token');
+
+    // неудачный пинг не ломает бэкап
+    const flaky = newDir();
+    const r2 = backup(flaky, { ...base2, FAIL_PING: '1' });
+    expect(r2.status).toBe(0);
+    expect(r2.stderr).toMatch(/heartbeat ping failed/);
+    expect(r2.stdout + r2.stderr).not.toContain('very-secret-token');
+
+    // неудачный бэкап — пинга нет (иначе мониторинг не заметит проблему)
+    const before = readFileSync(log, 'utf8').split('\n').length;
+    const bad = newDir();
+    expect(backup(bad, { ...base2, POSTGRES_DB: 'no_such_database' }).status).toBe(1);
+    expect(readFileSync(log, 'utf8').split('\n').length).toBe(before);
+  });
 });

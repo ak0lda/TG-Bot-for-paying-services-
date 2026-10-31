@@ -100,7 +100,9 @@ export function createHarness(
       },
     } as never);
   }
-  async function photo(id: number) {
+  let photoSeq = 0;
+  /** uniqueId — file_unique_id; по умолчанию у каждого фото свой. */
+  async function photo(id: number, uniqueId = `u${++photoSeq}`) {
     await bot.handleUpdate({
       update_id: updateId++,
       message: {
@@ -108,7 +110,7 @@ export function createHarness(
         date: 0,
         chat: { id, type: 'private' },
         from: from(id),
-        photo: [{ file_id: 'PH1', file_unique_id: 'u', width: 1, height: 1 }],
+        photo: [{ file_id: 'PH1', file_unique_id: uniqueId, width: 1, height: 1 }],
       },
     } as never);
   }

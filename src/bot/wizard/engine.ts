@@ -6,7 +6,7 @@ import { o as ot } from '../../texts/orders.js';
 export interface WizardInput {
   text?: string;
   button?: string;
-  file?: { id: string; type: 'photo' | 'document' };
+  file?: { id: string; type: 'photo' | 'document'; uniqueId?: string };
 }
 
 export interface Prompt {
@@ -67,8 +67,12 @@ export class WizardManager {
     if (!msg) return false;
     const input: WizardInput = {};
     if (msg.text) input.text = msg.text;
-    if (msg.photo?.length) input.file = { id: msg.photo[msg.photo.length - 1]!.file_id, type: 'photo' };
-    else if (msg.document) input.file = { id: msg.document.file_id, type: 'document' };
+    if (msg.photo?.length) {
+      const p = msg.photo[msg.photo.length - 1]!;
+      input.file = { id: p.file_id, type: 'photo', uniqueId: p.file_unique_id };
+    } else if (msg.document) {
+      input.file = { id: msg.document.file_id, type: 'document', uniqueId: msg.document.file_unique_id };
+    }
     if (!input.text && !input.file) return false;
     await this.handle(ctx, a, input);
     return true;

@@ -168,7 +168,7 @@ function doneWizard(deps: Deps): WizardDef<DoneData> {
         handle: async (input, d) => {
           if (input.button === 'skip') return undefined;
           if (!input.file) return ot.needFile;
-          d.screenshot = { fileId: input.file.id, fileType: input.file.type };
+          d.screenshot = { fileId: input.file.id, fileType: input.file.type, uniqueId: input.file.uniqueId };
           return undefined;
         },
       },
