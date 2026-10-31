@@ -209,7 +209,7 @@ export function adminCatalogHandlers(deps: Deps): Composer<BotContext> {
       return void (await ctx.reply(lines.join('\n') + '\n\n' + escapeHtml(ct.rateUsage), html));
     }
     const code = curRaw.toUpperCase();
-    if (!/^[A-Z]{3}$/.test(code) || code === 'RUB') return void (await ctx.reply(ct.rateUsage));
+    if (!/^[A-Z]{3,5}$/.test(code) || code === 'RUB') return void (await ctx.reply(ct.rateUsage));
     if (!valueRaw) return void (await ctx.reply(ct.rateUsage));
     if (valueRaw.toLowerCase() === 'clear') {
       await deps.rates.clearManual(code);

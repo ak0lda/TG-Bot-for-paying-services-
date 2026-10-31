@@ -7,6 +7,8 @@ import type { Attached } from './order-service.js';
 export type TopUpWithClient = TopUp & { client: User; method: PaymentMethod | null };
 
 export class TopUpNotPendingError extends Error {}
+/** USDT-пополнение нельзя подтвердить, пока перевод не найден в сети. */
+export class CryptoNotPaidError extends Error {}
 
 export class TopUpService {
   constructor(private readonly db: Db) {}
@@ -58,6 +60,9 @@ export class TopUpService {
    */
   async confirm(id: number, adminId: number): Promise<{ topUp: TopUpWithClient; balanceMinor: bigint } | null> {
     return this.db.$transaction(async (tx) => {
+      const pre = await tx.topUp.findUnique({ where: { id }, select: { kind: true, cryptoTxId: true, status: true } });
+      if (pre && pre.status === 'PENDING' && pre.kind === 'USDT_TRC20' && !pre.cryptoTxId)
+        throw new CryptoNotPaidError();
       const claimed = await tx.topUp.updateMany({
         where: { id, status: 'PENDING' },
         data: { status: 'CONFIRMED', confirmedById: adminId },

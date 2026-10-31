@@ -154,7 +154,8 @@ export class RatesService implements RatesProvider {
     }
 
     const cache = await this.loadCbr();
-    const scaled = cache?.rates.get(code);
+    // USDT ЦБ не публикует: считаем 1 USDT = 1 USD по курсу ЦБ (ручной курс USDT это переопределяет).
+    const scaled = cache?.rates.get(code === 'USDT' ? 'USD' : code);
     if (!cache || !scaled) throw new RateUnavailableError(code);
     return { currency: code, scaled, source: 'CBR', at: cache.fetchedAt };
   }

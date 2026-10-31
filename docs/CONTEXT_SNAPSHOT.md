@@ -128,6 +128,14 @@
 - Открытие в настоящем Telegram (нужен HTTPS-домен/туннель и токен); поведение кнопки «Назад», тем и `closeMiniApp` проверено только на эмуляции среды (`TelegramWebviewProxy`).
 - Сборка Docker-образа и `docker compose --profile https up`.
 
+## Этап 6 — аудит и расширения (сделано)
+- Аудит безопасности: безопасное логирование ошибок (`logging/safe-error.ts`), AlertService, ротация ключей шифрования (`keys:rotate`), шифрованные бэкапы (age) + rclone, проверка свежести бэкапа, очистка истории git от персональных данных.
+- Расширения: внешний heartbeat, дубли чеков, проверка ссылок (blocklist/lookalike/Safe Browsing), повтор заявок/пресеты/`/calc`, `/fx`, разбор пересланных уведомлений банка (`domain/bank-notification.ts`, `services/payment-matcher.ts`), USDT TRC-20 (`domain/{tron-address,crypto-invoice}.ts`, `services/{tron,crypto-service}.ts`, `texts/crypto.ts`, миграция `20260106000000_integrations`).
+- USDT: счёт = TopUp(kind=USDT_TRC20) с точной суммой в micro-USDT, курс/комиссия фиксируются, `cryptoTxId` unique; зачисление только по нажатию админа и только если перевод найден (`CryptoNotPaidError`). Опрос раз в 60 с (`processCrypto`), курсор — Setting `tronCursor`, окно ±10 мин.
+- Тесты: 303 (в т.ч. `crypto.e2e`, `crypto-domain`, `bank-match.e2e`, `link-safety.e2e`, `receipts-heartbeat.e2e`, `fx-advice`).
+- **Не проверено:** живой TronGrid (формат ответа взят из документации, парсер валидирует схему и пропускает непонятные записи), реальные форматы банковских уведомлений, Docker/CI/rclone, Telegram.
+- `pnpm audit --prod`: 2 moderate в транзитивных `glob`/`minimatch` через `@fastify/static` (DoS на glob-шаблонах; мы не передаём пользовательские шаблоны) — обновить при выходе патча.
+
 ## Как продолжить в новой сессии
 `pnpm install && pnpm prisma generate`; прочитать этот файл и `prisma/schema.prisma`;
 для интеграционных/e2e тестов поднять PostgreSQL, применить `pnpm prisma migrate deploy` и выставить `TEST_DATABASE_URL`.

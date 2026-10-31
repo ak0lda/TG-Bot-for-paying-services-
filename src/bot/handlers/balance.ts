@@ -1,5 +1,7 @@
 import { Composer, InlineKeyboard } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
+import { CryptoNotPaidError } from '../../services/topup-service.js';
+import { cx } from '../../texts/crypto.js';
 import { startTopUp } from '../wizard/topup-flow.js';
 import { debtOf } from '../../domain/ledger.js';
 import { balanceOf, ledgerHistory } from '../../services/ledger-service.js';
@@ -45,6 +47,16 @@ export function balanceHandlers(deps: Deps): Composer<BotContext> {
     await startTopUp(ctx, deps, { repayDebt: ctx.match[1] === 'debt' });
   });
 
+  // ── Клиент: отмена неоплаченного USDT-счёта ───────────────
+  c.callbackQuery(/^cc:(\d+)$/, async (ctx) => {
+    if (ctx.appUser?.role !== 'CLIENT') return void (await ctx.answerCallbackQuery());
+    const id = Number(ctx.match[1]);
+    const ok = await deps.crypto.cancelInvoice(id, ctx.appUser.id);
+    await ctx.answerCallbackQuery();
+    if (ok) await ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => undefined);
+    await ctx.reply(ok ? cx.cancelled(id) : cx.cancelTooLate);
+  });
+
   // ── Админ: подтверждение пополнений ───────────────────────
   c.callbackQuery(/^t:(\d+):(ok|no)$/, async (ctx) => {
     if (ctx.appUser?.role !== 'ADMIN') return void (await ctx.answerCallbackQuery({ text: ot.forbidden }));
@@ -53,7 +65,11 @@ export function balanceHandlers(deps: Deps): Composer<BotContext> {
     const strip = () => ctx.editMessageReplyMarkup({ reply_markup: new InlineKeyboard() }).catch(() => undefined);
 
     if (approve) {
-      const res = await deps.topups.confirm(id, ctx.appUser.id);
+      const res = await deps.topups.confirm(id, ctx.appUser.id).catch((e: unknown) => {
+        if (e instanceof CryptoNotPaidError) return 'unpaid' as const;
+        throw e;
+      });
+      if (res === 'unpaid') return void (await ctx.answerCallbackQuery({ text: cx.notPaid, show_alert: true }));
       if (!res) {
         await ctx.answerCallbackQuery({ text: b.topUpAlready });
         return void (await strip());

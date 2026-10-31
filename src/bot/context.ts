@@ -12,6 +12,7 @@ import type { RatesService } from '../services/rates.js';
 import type { CatalogService } from '../services/catalog-service.js';
 import type { ReportService } from '../services/report-service.js';
 import type { TopUpService } from '../services/topup-service.js';
+import type { CryptoService } from '../services/crypto-service.js';
 import type { AlertService } from '../services/alerts.js';
 import type { LinkSafetyService } from '../services/link-safety.js';
 import type { Notifier } from '../services/notifier.js';
@@ -28,6 +29,7 @@ export interface Deps {
   domains: TrustedDomainService;
   orders: OrderService;
   topups: TopUpService;
+  crypto: CryptoService;
   reports: ReportService;
   rates: RatesService;
   catalog: CatalogService;

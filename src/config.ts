@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidTronAddress } from './domain/tron-address.js';
 import { makeKeyring, parseOldKeys } from './services/crypto.js';
 
 const emptyToUndefined = (v: unknown) => (v === '' ? undefined : v);
@@ -49,6 +50,19 @@ const schema = z
     HEARTBEAT_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),
     /** Ключ Google Safe Browsing API (необязательно): проверка доменов ссылок на фишинг/вредоносные сайты. */
     SAFE_BROWSING_API_KEY: z.preprocess(emptyToUndefined, z.string().min(10).optional()),
+    /** Адрес для приёма USDT (сеть TRON, TRC-20). Только публичный адрес — приватных ключей на сервере нет. Пусто — крипто-пополнение выключено. */
+    CRYPTO_USDT_TRON_ADDRESS: z.preprocess(
+      emptyToUndefined,
+      z.string().refine(isValidTronAddress, 'invalid TRON address (checksum)').optional(),
+    ),
+    /** Ключ TronGrid API (необязательно, но без него лимиты запросов очень низкие). */
+    TRONGRID_API_KEY: z.preprocess(emptyToUndefined, z.string().min(10).optional()),
+    TRONGRID_URL: z.string().url().startsWith('https://').default('https://api.trongrid.io'),
+    /** Контракт USDT в сети TRON (по умолчанию — официальный Tether). */
+    CRYPTO_USDT_CONTRACT: z
+      .string()
+      .refine(isValidTronAddress, 'invalid TRON contract address')
+      .default('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'),
     TIMEZONE: z.string().default('Europe/Moscow'),
     /** Публичный HTTPS-адрес Mini App (например https://bot.example.com/app/). Если пуст — Mini App отключён в боте. */
     WEBAPP_URL: z.preprocess(emptyToUndefined, z.string().url().startsWith('https://').optional()),

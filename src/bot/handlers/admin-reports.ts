@@ -2,11 +2,13 @@ import { Composer, InlineKeyboard, InputFile } from 'grammy';
 import type { BotContext, Deps } from '../context.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { parseRange } from '../../domain/range.js';
+import { formatUsdt } from '../../domain/crypto-invoice.js';
+import { cx } from '../../texts/crypto.js';
 import { o as ot } from '../../texts/orders.js';
 import { fx as fxt, r } from '../../texts/reports.js';
 
 const html = { parse_mode: 'HTML' as const, link_preview_options: { is_disabled: true } };
-const ADMIN_COMMANDS = ['stats', 'export', 'subs', 'fx'];
+const ADMIN_COMMANDS = ['stats', 'export', 'subs', 'fx', 'crypto'];
 
 export function adminReportHandlers(deps: Deps): Composer<BotContext> {
   const outer = new Composer<BotContext>();
@@ -49,6 +51,22 @@ export function adminReportHandlers(deps: Deps): Composer<BotContext> {
     const subs = await deps.orders.listSubscriptions();
     if (subs.length === 0) return void (await ctx.reply(r.subsEmpty));
     await ctx.reply([r.subsTitle, ...subs.map((s) => r.subLine(s, tz))].join('\n'), html);
+  });
+
+  c.command('crypto', async (ctx) => {
+    if (!deps.crypto.enabled) return void (await ctx.reply(cx.statusOff));
+    const pending = await deps.db.topUp.count({ where: { kind: 'USDT_TRC20', status: 'PENDING' } });
+    const last = await deps.db.cryptoTransfer.findFirst({ orderBy: { blockTimestamp: 'desc' } });
+    await ctx.reply(
+      cx.status({
+        address: deps.crypto.address,
+        pending,
+        lastSeen: last
+          ? `${formatUsdt(last.amountMicro)} USDT, ${last.blockTimestamp.toISOString().slice(0, 16)}Z`
+          : null,
+      }),
+      html,
+    );
   });
 
   c.command('fx', async (ctx) => {

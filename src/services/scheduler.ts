@@ -3,6 +3,8 @@ import type { Deps } from '../bot/context.js';
 import { debtOf } from '../domain/ledger.js';
 import { balancesByClient } from './ledger-service.js';
 import { b } from '../texts/balance.js';
+import { cx } from '../texts/crypto.js';
+import { topUpAdminCard } from '../bot/requisites.js';
 import { r } from '../texts/reports.js';
 import { al, rw } from '../texts/rates.js';
 import { readBackupStatus } from './backup-health.js';
@@ -11,10 +13,22 @@ import { o as ot } from '../texts/orders.js';
 import { safeError } from '../logging/safe-error.js';
 
 const SWEEP_MS = 5 * 60 * 1000;
+const CRYPTO_POLL_MS = 60 * 1000;
 
 type SchedulerDeps = Pick<
   Deps,
-  'orders' | 'presenter' | 'log' | 'db' | 'settings' | 'notifier' | 'config' | 'alerts' | 'rates'
+  | 'orders'
+  | 'presenter'
+  | 'log'
+  | 'db'
+  | 'settings'
+  | 'notifier'
+  | 'config'
+  | 'alerts'
+  | 'rates'
+  | 'crypto'
+  | 'topups'
+  | 'catalog'
 >;
 
 const localHour = (now: Date, tz: string): number =>
@@ -116,6 +130,30 @@ export async function runHealthChecks(deps: SchedulerDeps, startedAt: Date, now:
     await deps.alerts.alert('rates:stale', rw.alertStale(Math.floor(age)), 6 * 3_600_000);
 }
 
+/** USDT: опрос сети, привязка переводов к счетам, истечение неоплаченных счетов. Подтверждает зачисление админ. */
+export async function processCrypto(deps: SchedulerDeps): Promise<void> {
+  if (!deps.crypto.enabled) return;
+  try {
+    const { matched, unmatched } = await deps.crypto.poll();
+    for (const t of matched) {
+      await deps.notifier.toClient(t.client.telegramId, cx.seen(t.id));
+      const card = await topUpAdminCard(deps, t);
+      await deps.notifier.toAdmin(`${cx.adminSeen(t.id)}\n\n${card.text}`, card.kb);
+    }
+    for (const u of unmatched) {
+      await deps.notifier.toAdmin(
+        cx.unmatched(u.transfer.amountMicro, u.transfer.txid, u.transfer.from, u.expiredTopUpId),
+      );
+    }
+  } catch (e) {
+    deps.log.warn({ ...safeError(e) }, 'crypto poll failed');
+    await deps.alerts.alert('crypto:poll', cx.pollFailed, 3 * 3_600_000);
+  }
+  for (const t of await deps.crypto.expireInvoices()) {
+    await deps.notifier.toClient(t.client.telegramId, cx.expired(t.id));
+  }
+}
+
 /** Планировщик: истечение расчётов, напоминания (долги, подписки), очистка кодов подарочных карт. */
 export function startScheduler(deps: SchedulerDeps): () => void {
   const startedAt = new Date();
@@ -129,6 +167,7 @@ export function startScheduler(deps: SchedulerDeps): () => void {
       const purged = await purgeGiftCodes(deps);
       if (purged > 0) deps.log.info({ purged }, 'gift codes purged');
       await runHealthChecks(deps, startedAt);
+      await processCrypto(deps);
       // Пульс только после успешного прохода: если планировщик ломается, внешний мониторинг заметит тишину.
       await pingHeartbeat(deps.config.HEARTBEAT_URL, deps.log);
     } catch (e) {
@@ -138,5 +177,10 @@ export function startScheduler(deps: SchedulerDeps): () => void {
   };
   void sweep();
   const timer = setInterval(() => void sweep(), SWEEP_MS);
-  return () => clearInterval(timer);
+  // Крипто-платежи проверяем чаще: клиент ждёт ответа бота после перевода.
+  const cryptoTimer = setInterval(() => void processCrypto(deps).catch(() => undefined), CRYPTO_POLL_MS);
+  return () => {
+    clearInterval(timer);
+    clearInterval(cryptoTimer);
+  };
 }

@@ -34,7 +34,7 @@ export function createHarness(
   url: string,
   extraEnv: Record<string, string> = {},
   fetchRatesXml: () => Promise<string> = async () => CBR_XML,
-  buildOpts: { linkSafetyFetch?: typeof fetch } = {},
+  buildOpts: { linkSafetyFetch?: typeof fetch; tronFetch?: typeof fetch } = {},
 ) {
   const encKey = randomBytes(32);
   const sent: Sent[] = [];

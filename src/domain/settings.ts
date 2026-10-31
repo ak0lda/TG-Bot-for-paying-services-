@@ -29,6 +29,10 @@ export const SETTING_DEFS = {
     max: 10_000_000_00,
     label: 'Лимит «оплаты позже» по умолчанию, ₽',
   },
+  cryptoFeeBp: { kind: 'percent', default: 100, min: 0, max: 10_000, label: 'Комиссия за USDT-пополнение, %' },
+  cryptoInvoiceTtlMin: { kind: 'int', default: 120, min: 15, max: 1440, label: 'Срок действия USDT-счёта, мин' },
+  cryptoMinUsdt: { kind: 'int', default: 5, min: 1, max: 100_000, label: 'Минимум USDT-пополнения, USDT' },
+  cryptoMaxUsdt: { kind: 'int', default: 5000, min: 1, max: 1_000_000, label: 'Максимум USDT-пополнения, USDT' },
 } as const satisfies Record<string, Def>;
 
 export type SettingKey = keyof typeof SETTING_DEFS;

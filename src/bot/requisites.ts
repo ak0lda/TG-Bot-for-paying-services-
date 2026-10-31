@@ -7,6 +7,7 @@ import { balanceOf } from '../services/ledger-service.js';
 import type { OrderWithClient } from '../services/order-service.js';
 import type { TopUpWithClient } from '../services/topup-service.js';
 import { b } from '../texts/balance.js';
+import { cx } from '../texts/crypto.js';
 import { o as ot } from '../texts/orders.js';
 
 // Реквизиты присылает админ вручную для каждой заявки/пополнения. Текст только пересылается клиенту:
@@ -14,10 +15,35 @@ import { o as ot } from '../texts/orders.js';
 
 /** Карточка пополнения для админа: способы (кнопки «отправить реквизиты») + подтверждение/отказ. */
 export async function topUpAdminCard(
-  deps: Deps,
+  deps: Pick<Deps, 'db' | 'topups' | 'catalog' | 'config'>,
   topUp: TopUpWithClient,
 ): Promise<{ text: string; kb: InlineKeyboard }> {
   const debt = debtOf(await balanceOf(deps.db, topUp.clientId));
+  if (topUp.kind === 'USDT_TRC20') {
+    const kb = new InlineKeyboard();
+    if (topUp.cryptoTxId) kb.url(cx.tronscanBtn, `https://tronscan.org/#/transaction/${topUp.cryptoTxId}`).row();
+    kb.text(b.confirmTopUp, `t:${topUp.id}:ok`).row().text(b.rejectTopUp, `t:${topUp.id}:no`);
+    return {
+      text: cx.adminCard({
+        id: topUp.id,
+        client: topUp.client,
+        amountMicro: topUp.cryptoAmountMicro ?? 0n,
+        creditMinor: topUp.amountMinor,
+        txid: topUp.cryptoTxId,
+        expires: topUp.expiresAt
+          ? new Intl.DateTimeFormat('ru-RU', {
+              timeZone: deps.config.TIMEZONE,
+              day: '2-digit',
+              month: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            }).format(topUp.expiresAt)
+          : '—',
+        debt,
+      }),
+      kb,
+    };
+  }
   const receipts = await deps.topups.receiptCount(topUp.id);
   const kb = new InlineKeyboard();
   for (const m of await deps.catalog.listMethods(true))

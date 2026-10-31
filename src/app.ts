@@ -8,6 +8,8 @@ import { WizardManager } from './bot/wizard/engine.js';
 import { AlertService } from './services/alerts.js';
 import { rw } from './texts/rates.js';
 import { CatalogService } from './services/catalog-service.js';
+import { CryptoService } from './services/crypto-service.js';
+import { TronGridClient } from './services/tron.js';
 import { InviteService } from './services/invite-service.js';
 import { LinkSafetyService } from './services/link-safety.js';
 import { Notifier } from './services/notifier.js';
@@ -25,7 +27,7 @@ export function buildDeps(
   db: Db,
   log: Logger,
   api: Api,
-  opts: { fetchRatesXml?: () => Promise<string>; linkSafetyFetch?: typeof fetch } = {},
+  opts: { fetchRatesXml?: () => Promise<string>; linkSafetyFetch?: typeof fetch; tronFetch?: typeof fetch } = {},
 ): Deps {
   const settings = new SettingsService(db);
   const domains = new TrustedDomainService(db);
@@ -54,6 +56,17 @@ export function buildDeps(
       ...(opts.linkSafetyFetch ? { fetchFn: opts.linkSafetyFetch } : {}),
     }),
     topups: new TopUpService(db),
+    crypto: new CryptoService(
+      db,
+      config,
+      rates,
+      settings,
+      new TronGridClient({
+        baseUrl: config.TRONGRID_URL,
+        apiKey: config.TRONGRID_API_KEY,
+        ...(opts.tronFetch ? { fetchFn: opts.tronFetch } : {}),
+      }),
+    ),
     reports: new ReportService(db),
     orders: new OrderService(db, rates, settings, config.keyring),
     presenter: new Presenter({ domains, settings, config, catalog, notifier }),
