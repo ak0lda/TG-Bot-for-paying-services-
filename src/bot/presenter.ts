@@ -6,7 +6,7 @@ import { isTrustedDomain } from '../domain/link-validator.js';
 import { formatMinor, formatRub } from '../domain/money.js';
 import { formatRate } from '../domain/pricing.js';
 import { rateScaledOf, type OrderWithClient } from '../services/order-service.js';
-import { LINK_REMINDER, STATUS_EMOJI, STATUS_LABEL, TYPE_LABEL, o as ot, periodLabel } from '../texts/orders.js';
+import { linkRiskText, LINK_REMINDER, STATUS_EMOJI, STATUS_LABEL, TYPE_LABEL, o as ot, periodLabel } from '../texts/orders.js';
 import { escapeHtml } from '../texts/ru.js';
 
 export interface View {
@@ -159,6 +159,9 @@ export class Presenter {
           ? `✅ <b>Доверенный домен:</b> ${escapeHtml(o.urlDomain)}`
           : `⚠️ <b>НЕИЗВЕСТНЫЙ ДОМЕН — проверь перед вводом карты:</b> ${escapeHtml(o.urlDomain)}`,
       );
+    }
+    if (o.linkRisk) {
+      lines.push(`⛔ <b>ПОДОЗРИТЕЛЬНАЯ ССЫЛКА:</b>\n${o.linkRisk.split(';').map((c) => `• ${escapeHtml(linkRiskText(c))}`).join('\n')}`);
     }
     const ageMs = this.now().getTime() - o.createdAt.getTime();
     let age = `Возраст заявки: ${formatAge(ageMs)}`;

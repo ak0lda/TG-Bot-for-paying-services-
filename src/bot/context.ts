@@ -13,6 +13,7 @@ import type { CatalogService } from '../services/catalog-service.js';
 import type { ReportService } from '../services/report-service.js';
 import type { TopUpService } from '../services/topup-service.js';
 import type { AlertService } from '../services/alerts.js';
+import type { LinkSafetyService } from '../services/link-safety.js';
 import type { Notifier } from '../services/notifier.js';
 import type { Presenter } from './presenter.js';
 import type { WizardManager } from './wizard/engine.js';
@@ -32,6 +33,7 @@ export interface Deps {
   catalog: CatalogService;
   notifier: Notifier;
   alerts: AlertService;
+  linkSafety: LinkSafetyService;
   presenter: Presenter;
   wizards: WizardManager;
 }

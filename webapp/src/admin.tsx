@@ -157,6 +157,16 @@ export function AdminOrder({ id, me, onChanged }: { id: number; me: Me; onChange
             ⚠️ <b>НЕИЗВЕСТНЫЙ ДОМЕН — проверь перед вводом карты:</b> {o.urlDomain}
           </div>
         ))}
+      {o.linkRisks.length > 0 && (
+        <div className="errbox">
+          ⛔ <b>ПОДОЗРИТЕЛЬНАЯ ССЫЛКА</b>
+          {o.linkRisks.map((r) => (
+            <div key={r} style={{ marginTop: 4 }}>
+              • {r}
+            </div>
+          ))}
+        </div>
+      )}
       {o.url && ageH > (me.staleLinkHours ?? 24) && !['DONE', 'CANCELED', 'REJECTED'].includes(o.status) && (
         <div className="warnbox">⏳ Заявке {ageOf(o.createdAt)} — ссылка может быть недействительна.</div>
       )}

@@ -3,7 +3,7 @@ import { allowedTransitions, type Actor } from '../../domain/order-fsm.js';
 import { formatRate } from '../../domain/pricing.js';
 import { rateScaledOf } from '../../services/order-service.js';
 import { LEDGER_LABEL } from '../../texts/balance.js';
-import { STATUS_LABEL, TYPE_LABEL, o as ot } from '../../texts/orders.js';
+import { STATUS_LABEL, TYPE_LABEL, linkRiskText, o as ot } from '../../texts/orders.js';
 
 /** Деньги наружу — строками в минимальных единицах (BigInt не сериализуется в JSON). */
 const m = (x: bigint | null | undefined): string | null => (x == null ? null : x.toString());
@@ -64,6 +64,8 @@ export function orderDto(o: Order, role: Actor, extra: OrderDtoExtras = {}) {
     comment: o.comment,
     url: o.url,
     urlDomain: o.urlDomain,
+    // Предупреждения о ссылке видит только админ (клиенту незачем знать, чем она подозрительна).
+    linkRisks: role === 'ADMIN' && o.linkRisk ? o.linkRisk.split(';').map(linkRiskText) : [],
     trusted: extra.trusted ?? null,
     giftRegion: o.giftRegion,
     amountMinor: m(o.amountMinor),

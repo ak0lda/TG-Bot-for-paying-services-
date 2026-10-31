@@ -22,7 +22,8 @@ export const t = {
     '/block &lt;id&gt; · /unblock &lt;id&gt;\n' +
     '/paylater &lt;id&gt; on [лимит ₽] | off\n' +
     '/settings [ключ значение]\n' +
-    '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n\n' +
+    '/domains · /domain_add &lt;домен&gt; · /domain_del &lt;домен&gt;\n' +
+    '/domain_ban &lt;домен&gt; [причина] · /domain_unban · /banned — чёрный список ссылок\n\n' +
     '/orders — открытые заявки\n' +
     '/stats [период] · /export [период] · /subs\n' +
     '/debts — долги и переплаты · /client &lt;id&gt; — карточка клиента\n' +
@@ -75,4 +76,9 @@ export const t = {
   domainExists: 'Такой домен уже в списке.',
   domainRemoved: (d: string) => `Домен удалён: ${escapeHtml(d)}`,
   domainMissing: 'Такого домена нет в списке.',
+  banned: (domain: string, open: number) => `⛔ Домен ${escapeHtml(domain)} в чёрном списке — новые заявки с ним не принимаются.${open ? `\nОткрытых заявок с этим доменом: ${open} — проверь их: /orders` : ''}`,
+  banExists: 'Домен уже в чёрном списке.',
+  unbanned: (domain: string) => `Домен ${escapeHtml(domain)} убран из чёрного списка.`,
+  bannedEmpty: 'Чёрный список пуст.',
+  bannedList: (rows: string[]) => `<b>Чёрный список доменов</b>\n${rows.join('\n')}`,
 };

@@ -28,6 +28,23 @@ export const TYPE_LABEL: Record<OrderType, string> = {
 export const periodLabel = (kind: PeriodKind | null, days: number | null): string =>
   kind === 'MONTH' ? 'месяц' : kind === 'YEAR' ? 'год' : kind === 'CUSTOM' ? `${days} дн.` : '—';
 
+/** Человекочитаемое описание кода риска ссылки (хранится в Order.linkRisk через «;»). */
+export function linkRiskText(code: string): string {
+  if (code === 'PUNYCODE') return 'домен записан в punycode (xn--) — возможна подмена похожих символов';
+  if (code.startsWith('LOOKALIKE:')) return `домен похож на доверенный ${code.slice('LOOKALIKE:'.length)}, но им не является`;
+  if (code.startsWith('SAFE_BROWSING:')) {
+    const kinds: Record<string, string> = {
+      MALWARE: 'вредоносный сайт',
+      SOCIAL_ENGINEERING: 'фишинг / мошенничество',
+      UNWANTED_SOFTWARE: 'нежелательное ПО',
+      POTENTIALLY_HARMFUL_APPLICATION: 'потенциально опасное приложение',
+    };
+    const t = code.slice('SAFE_BROWSING:'.length);
+    return `Google Safe Browsing: ${kinds[t] ?? t}`;
+  }
+  return code;
+}
+
 export const LINK_REMINDER = '⏱ Ссылка на оплату может истечь, поэтому после расчёта лучше сразу переводить деньги.';
 
 export const o = {
@@ -87,6 +104,7 @@ export const o = {
     shortener: 'Сокращённые ссылки (bit.ly, t.co и т.п.) не принимаю — пришли полную ссылку со страницы оплаты.',
     credentials: 'В ссылке есть логин/пароль — так нельзя. Пришли ссылку без них.',
     too_long: 'Ссылка слишком длинная.',
+    blocked: 'Эту ссылку я принять не могу. Пришли другую или напиши админу.',
   } as const,
   summaryTitle: 'Проверь заявку:',
   sendBtn: '✅ Отправить',

@@ -14,6 +14,7 @@ export interface OrderDraft {
   url?: string;
   urlDomain?: string;
   urlTrusted?: boolean;
+  urlRisks?: string[];
   service?: string;
   region?: string;
   description?: string;
@@ -70,6 +71,7 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
         d.url = res.value.url;
         d.urlDomain = res.value.domain;
         d.urlTrusted = res.value.trusted;
+        d.urlRisks = res.value.risks;
         return undefined;
       },
     },
@@ -230,6 +232,7 @@ export function orderWizard(deps: Deps): WizardDef<OrderDraft> {
         description: d.description ?? null,
         url: d.url ?? null,
         urlDomain: d.urlDomain ?? null,
+        linkRisk: d.urlRisks?.length ? d.urlRisks.join(';') : null,
         giftRegion: d.region ?? null,
         amountMinor: d.amountMinor!,
         currency: d.currency!,

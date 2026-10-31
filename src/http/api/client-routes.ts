@@ -147,9 +147,12 @@ export function clientRoutes(deps: Deps) {
     app.post('/orders/:id/new-link', async (req) => {
       const body = versioned.extend({ url: z.string().trim().min(1).max(2048) }).parse(req.body);
       const order = await ownOrder(req);
-      const link = validateLink(body.url, await deps.domains.list());
+      const trustedList = await deps.domains.list();
+      const link = validateLink(body.url, trustedList);
       if (!link.ok) throw new ApiError(422, `link_${link.error}`, ot.link[link.error], { field: 'url' });
-      const updated = await deps.orders.submitNewLink(order.id, body.version, req.actor.id, link.url, link.domain);
+      const safety = await deps.linkSafety.check(link.domain, trustedList);
+      if (safety.blocked) throw new ApiError(422, 'link_blocked', ot.link.blocked, { field: 'url' });
+      const updated = await deps.orders.submitNewLink(order.id, body.version, req.actor.id, link.url, link.domain, safety.risks.join(';') || null);
       await deps.presenter.notifyAdmin(updated, ot.adminNewLink(updated.id));
       return { order: await dtoFor(updated), untrustedDomain: !link.trusted };
     });
@@ -165,17 +168,22 @@ export function clientRoutes(deps: Deps) {
       const needsUrl = src.type !== 'GIFT_CARD' && (src.type !== 'OTHER' || !!src.url);
       let url: string | null = null;
       let urlDomain: string | null = null;
+      let linkRisk: string | null = null;
       if (needsUrl) {
         if (!body.url) throw new ApiError(422, 'url_required', 'Нужна свежая ссылка на оплату', { field: 'url' });
-        const link = validateLink(body.url, await deps.domains.list());
+        const trustedList = await deps.domains.list();
+        const link = validateLink(body.url, trustedList);
         if (!link.ok) throw new ApiError(422, `link_${link.error}`, ot.link[link.error], { field: 'url' });
+        const safety = await deps.linkSafety.check(link.domain, trustedList);
+        if (safety.blocked) throw new ApiError(422, 'link_blocked', ot.link.blocked, { field: 'url' });
         url = link.url;
         urlDomain = link.domain;
+        linkRisk = safety.risks.join(';') || null;
       }
       if (!(await availableModes(deps, req.actor.id)).some((m) => m.mode === body.payMode)) {
         throw new ApiError(422, 'pay_mode_unavailable', ot.payModeUnavailable, { field: 'payMode' });
       }
-      const order = await deps.orders.renew(src.id, req.actor.id, { url, urlDomain, payMode: body.payMode });
+      const order = await deps.orders.renew(src.id, req.actor.id, { url, urlDomain, linkRisk, payMode: body.payMode });
       await deps.presenter.notifyAdmin(order, r.adminRenewal(src.id));
       return reply.code(201).send({ order: await dtoFor(order) });
     });

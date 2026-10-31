@@ -17,6 +17,7 @@ interface RenewData {
   url?: string;
   domain?: string;
   trusted?: boolean;
+  risks?: string[];
   payMode?: PayMode;
 }
 
@@ -50,6 +51,7 @@ function renewWizard(deps: Deps): WizardDef<RenewData> {
           d.url = res.value.url;
           d.domain = res.value.domain;
           d.trusted = res.value.trusted;
+          d.risks = res.value.risks;
           return undefined;
         },
       },
@@ -77,6 +79,7 @@ function renewWizard(deps: Deps): WizardDef<RenewData> {
         const order = await deps.orders.renew(d.sourceId, d.clientId, {
           url: d.url ?? null,
           urlDomain: d.domain ?? null,
+          linkRisk: d.risks?.length ? d.risks.join(';') : null,
           payMode: d.payMode ?? 'PREPAY',
         });
         deps.log.info({ orderId: order.id, from: d.sourceId }, 'subscription renewal created');

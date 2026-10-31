@@ -5,7 +5,7 @@ import { MoneyParseError, parseDecimalToMinor } from '../../domain/money.js';
 import { normalizeDomain } from '../../domain/domains.js';
 import { SettingParseError, formatSettingValue, isSettingKey, parseSettingInput } from '../../domain/settings.js';
 import { balancesByClient } from '../../services/ledger-service.js';
-import { t } from '../../texts/ru.js';
+import { escapeHtml, t } from '../../texts/ru.js';
 
 const html = { parse_mode: 'HTML' as const };
 
@@ -20,6 +20,9 @@ const ADMIN_COMMANDS = [
   'domains',
   'domain_add',
   'domain_del',
+  'domain_ban',
+  'domain_unban',
+  'banned',
 ];
 
 export function adminHandlers(deps: Deps): Composer<BotContext> {
@@ -128,6 +131,36 @@ export function adminHandlers(deps: Deps): Composer<BotContext> {
   });
 
   // Проверка роли только на админские команды: остальные апдейты проходят мимо к клиентским обработчикам.
+  // ── Чёрный список доменов ──────────────────────────────────
+  c.command('domain_ban', async (ctx) => {
+    const [domainRaw = '', ...reason] = ctx.match.trim().split(/\s+/);
+    const domain = normalizeDomain(domainRaw);
+    if (!domain) return void (await ctx.reply(t.usage('/domain_ban <домен> [причина]')));
+    if (!(await deps.linkSafety.ban(domain, reason.join(' ').slice(0, 200) || undefined))) {
+      return void (await ctx.reply(t.banExists));
+    }
+    const open = await deps.db.order.count({
+      where: { urlDomain: { in: [domain] }, status: { notIn: ['DONE', 'CANCELED', 'REJECTED'] } },
+    });
+    await ctx.reply(t.banned(domain, open), html);
+  });
+
+  c.command('domain_unban', async (ctx) => {
+    const domain = normalizeDomain(ctx.match);
+    if (!domain) return void (await ctx.reply(t.usage('/domain_unban <домен>')));
+    await ctx.reply((await deps.linkSafety.unban(domain)) ? t.unbanned(domain) : t.domainMissing, html);
+  });
+
+  c.command('banned', async (ctx) => {
+    const list = await deps.linkSafety.listBanned();
+    await ctx.reply(
+      list.length
+        ? t.bannedList(list.map((b) => `${escapeHtml(b.domain)}${b.reason ? ` — ${escapeHtml(b.reason)}` : ''}`))
+        : t.bannedEmpty,
+      html,
+    );
+  });
+
   outer.command(ADMIN_COMMANDS, requireAdmin, c);
   return outer;
 }

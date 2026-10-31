@@ -34,6 +34,7 @@ export function createHarness(
   url: string,
   extraEnv: Record<string, string> = {},
   fetchRatesXml: () => Promise<string> = async () => CBR_XML,
+  buildOpts: { linkSafetyFetch?: typeof fetch } = {},
 ) {
   const encKey = randomBytes(32);
   const sent: Sent[] = [];
@@ -65,7 +66,7 @@ export function createHarness(
   const db: Db = createDb(url);
   const api = new Api(config.BOT_TOKEN);
   api.config.use(transformer as never);
-  const deps: Deps = buildDeps(config, db, createLogger(config), api, { fetchRatesXml });
+  const deps: Deps = buildDeps(config, db, createLogger(config), api, { fetchRatesXml, ...buildOpts });
   const bot: Bot<BotContext> = createBot(deps, { rateLimit: { capacity: 10_000, refillPerSec: 10_000 } });
   bot.api.config.use(transformer as never);
   bot.botInfo = {

@@ -17,6 +17,8 @@ export interface Order {
   url: string | null;
   urlDomain: string | null;
   trusted: boolean | null;
+  /** Предупреждения о ссылке (только для админа). */
+  linkRisks: string[];
   giftRegion: string | null;
   amountMinor: string | null;
   currency: string | null;

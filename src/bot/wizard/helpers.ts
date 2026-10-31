@@ -27,10 +27,14 @@ export async function freeText(
 
 export async function linkInput(
   input: WizardInput,
-  deps: Pick<Deps, 'domains'>,
-): Promise<Result<{ url: string; domain: string; trusted: boolean }>> {
+  deps: Pick<Deps, 'domains' | 'linkSafety'>,
+): Promise<Result<{ url: string; domain: string; trusted: boolean; risks: string[] }>> {
   if (!input.text) return { ok: false, error: ot.link.invalid };
-  const res = validateLink(input.text, await deps.domains.list());
+  const trustedList = await deps.domains.list();
+  const res = validateLink(input.text, trustedList);
   if (!res.ok) return { ok: false, error: ot.link[res.error] };
-  return { ok: true, value: { url: res.url, domain: res.domain, trusted: res.trusted } };
+  // Чёрный список — отказ; подозрительные признаки (Safe Browsing, похожий домен) — заявка принимается, админ предупреждается.
+  const safety = await deps.linkSafety.check(res.domain, trustedList);
+  if (safety.blocked) return { ok: false, error: ot.link.blocked };
+  return { ok: true, value: { url: res.url, domain: res.domain, trusted: res.trusted, risks: safety.risks } };
 }

@@ -160,6 +160,7 @@ interface NewLinkData {
   clientId: number;
   url?: string;
   domain?: string;
+  risks?: string[];
 }
 
 export async function startNewLink(ctx: BotContext, deps: Deps, order: OrderWithClient): Promise<void> {
@@ -182,13 +183,14 @@ function newLinkWizard(deps: Deps): WizardDef<NewLinkData> {
           if (!res.ok) return res.error;
           d.url = res.value.url;
           d.domain = res.value.domain;
+          d.risks = res.value.risks;
           return undefined;
         },
       },
     ],
     finish: async (ctx, d) => {
       try {
-        const order = await deps.orders.submitNewLink(d.orderId, d.version, d.clientId, d.url!, d.domain!);
+        const order = await deps.orders.submitNewLink(d.orderId, d.version, d.clientId, d.url!, d.domain!, d.risks?.join(';') || null);
         await ctx.reply(ot.newLinkAccepted, html);
         await deps.presenter.notifyAdmin(order, ot.adminNewLink(order.id));
       } catch (e) {

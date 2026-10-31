@@ -59,12 +59,17 @@ export async function toNewOrderInput(
   let url: string | null = null;
   let urlDomain: string | null = null;
   let untrusted = false;
+  let linkRisk: string | null = null;
   if (allowsUrl && b.url) {
-    const res = validateLink(b.url, await deps.domains.list());
+    const trustedList = await deps.domains.list();
+    const res = validateLink(b.url, trustedList);
     if (!res.ok) throw fail(`link_${res.error}`, ot.link[res.error], { field: 'url' });
+    const safety = await deps.linkSafety.check(res.domain, trustedList);
+    if (safety.blocked) throw fail('link_blocked', ot.link.blocked, { field: 'url' });
     url = res.url;
     urlDomain = res.domain;
     untrusted = !res.trusted;
+    linkRisk = safety.risks.length ? safety.risks.join(';') : null;
   } else if (needsUrl) {
     throw fail('url_required', 'Нужна ссылка на оплату', { field: 'url' });
   }
@@ -108,6 +113,7 @@ export async function toNewOrderInput(
       description: b.type === 'GIFT_CARD' ? null : (b.description ?? null),
       url,
       urlDomain,
+      linkRisk,
       giftRegion: b.type === 'GIFT_CARD' ? (b.region ?? null) : null,
       amountMinor,
       currency,

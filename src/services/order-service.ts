@@ -63,6 +63,7 @@ export interface NewOrderInput {
   description?: string | null;
   url?: string | null;
   urlDomain?: string | null;
+  linkRisk?: string | null;
   giftRegion?: string | null;
   amountMinor: bigint;
   currency: string;
@@ -171,6 +172,7 @@ export class OrderService {
           description: input.description ?? null,
           url: input.url ?? null,
           urlDomain: input.urlDomain ?? null,
+          linkRisk: input.linkRisk ?? null,
           giftStore: input.type === 'GIFT_CARD' ? input.service : null,
           giftRegion: input.giftRegion ?? null,
           amountMinor: input.amountMinor,
@@ -460,10 +462,11 @@ export class OrderService {
     clientId: number,
     url: string,
     domain: string,
+    linkRisk: string | null = null,
   ): Promise<OrderWithClient> {
     return this.transition(orderId, version, 'IN_PROGRESS', CLIENT(clientId), {
       comment: 'Клиент прислал новую ссылку',
-      patch: { url, urlDomain: domain },
+      patch: { url, urlDomain: domain, linkRisk },
     });
   }
 
@@ -547,7 +550,7 @@ export class OrderService {
   async renew(
     sourceId: number,
     clientId: number,
-    over: { url: string | null; urlDomain: string | null; payMode: PayMode },
+    over: { url: string | null; urlDomain: string | null; linkRisk?: string | null; payMode: PayMode },
   ): Promise<OrderWithClient> {
     return this.db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${sourceId} FOR UPDATE`;
@@ -570,6 +573,7 @@ export class OrderService {
           description: src.description,
           url: over.url,
           urlDomain: over.urlDomain,
+          linkRisk: over.linkRisk ?? null,
           giftStore: src.giftStore,
           giftRegion: src.giftRegion,
           amountMinor: src.amountMinor,
